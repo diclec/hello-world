@@ -1,0 +1,23 @@
+[Unit]
+Description=PathToo private PMO portal
+After=network.target
+
+[Service]
+Type=simple
+User=pathtoo
+Group=pathtoo
+WorkingDirectory=/opt/pathtoo
+EnvironmentFile=/etc/pathtoo.env
+ExecStart=/opt/pathtoo-node/bin/node /opt/pathtoo/server.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pathtoo
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
