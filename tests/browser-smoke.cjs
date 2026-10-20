@@ -1,0 +1,28 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const {spawn}=require('node:child_process');
+const {mkdtempSync,rmSync}=require('node:fs');
+const {tmpdir}=require('node:os');
+const path=require('node:path');
+const {createServer}=require('node:net');
+const freePort=()=>new Promise(resolve=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const port=s.address().port;s.close(()=>resolve(port));});});
+(async()=>{
+ const dir=mkdtempSync(path.join(tmpdir(),'pathtoo-browser-'));const port=await freePort();const base='http://127.0.0.1:'+port;
+ let browser,server;
+ try {
+ server=spawn(process.execPath,['server.js'],{cwd:path.join(__dirname,'..'),env:{...process.env,DATA_DIR:dir,PORT:String(port),PUBLIC_ORIGIN:'',SEED_DEMO:'false',PMO_ACCESS_TOKEN:'browser-test-bootstrap-123'},stdio:['ignore','pipe','pipe']});
+ await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('Server startup timed out')),10000);server.stdout.on('data',d=>{if(d.toString().includes('listening')){clearTimeout(timeout);resolve();}});server.once('exit',()=>{clearTimeout(timeout);reject(Error('Test server stopped unexpectedly'));});});
+ browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,headless:true,args:['--no-sandbox']});
+ const context=await browser.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base);await page.getByRole('heading',{name:'Set up your workspace'}).waitFor();
+ await page.getByLabel('Organization name',{exact:true}).fill('Acme Health');await page.getByLabel('Your full name').fill('Jordan Admin');await page.getByLabel('Setup code').fill('browser-test-bootstrap-123');await page.getByLabel('Email address').fill('jordan@example.test');await page.getByLabel('Password',{exact:true}).fill('a-long-browser-passphrase');await page.getByLabel('Confirm password').fill('a-long-browser-passphrase');await page.getByRole('button',{name:'Create customer workspace'}).click();
+ await page.getByRole('heading',{name:'Welcome, Jordan'}).waitFor();if(await page.locator('tbody tr[data-project]').count())throw Error('Fresh customer should be empty');
+ await page.getByRole('button',{name:'New project'}).click();await page.getByLabel('Project name').fill('Customer project');await page.getByRole('button',{name:'Create project',exact:true}).click();await page.getByText('Customer project',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Administration',exact:true}).click();await page.getByRole('button',{name:'Add user'}).click();await page.getByLabel('Full name',{exact:true}).fill('Taylor Viewer');await page.getByLabel('Email address').fill('taylor@example.test');await page.getByLabel('Customer project',{exact:true}).check();await page.getByRole('button',{name:'Create invitation'}).click();await page.getByRole('heading',{name:'Invitation for Taylor Viewer'}).waitFor();const link=await page.locator('#private-user-link').inputValue();await page.getByRole('button',{name:'Done',exact:true}).click();
+ const c2=await browser.newContext();const viewer=await c2.newPage();viewer.on('pageerror',e=>errors.push(e.message));await viewer.goto(link);await viewer.getByRole('heading',{name:'Choose your password'}).waitFor();await viewer.getByLabel('New password',{exact:true}).fill('a-long-viewer-passphrase');await viewer.getByLabel('Confirm password').fill('a-long-viewer-passphrase');await viewer.getByRole('button',{name:'Set password & sign in'}).click();await viewer.getByRole('heading',{name:'Welcome, Taylor'}).waitFor();if(await viewer.getByRole('button',{name:'Administration',exact:true}).count())throw Error('Viewer has admin navigation');if(!await viewer.getByRole('button',{name:'New project'}).isDisabled())throw Error('Viewer project creation enabled');await viewer.getByText('Customer project',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.getByRole('row').filter({hasText:'Taylor Viewer'}).getByRole('button',{name:'Edit access'}).click();await page.getByLabel('Account status').selectOption('disabled');await page.getByRole('button',{name:'Save access'}).click();await page.getByRole('dialog').waitFor({state:'hidden'});
+ await viewer.reload();await viewer.getByRole('heading',{name:'Welcome back'}).waitFor();
+ await page.setViewportSize({width:390,height:844});if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Mobile overflow');
+ await page.locator('#profile').click();await page.getByRole('heading',{name:'My account'}).waitFor();await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('heading',{name:'Welcome back'}).waitFor();await page.getByLabel('Email address').fill('jordan@example.test');await page.getByLabel('Password',{exact:true}).fill('a-long-browser-passphrase');await page.getByRole('button',{name:'Sign in',exact:true}).click();await page.getByRole('heading',{name:'Welcome, Jordan'}).waitFor();await page.getByRole('button',{name:'Administration',exact:true}).click();await page.setViewportSize({width:1440,height:1000});
+ if(errors.length)throw Error(errors.join('\n'));console.log('Passed: first admin setup, empty customer, project creation, invitation, viewer acceptance, role controls, disabling revokes browser session, mobile layout, logout and password login. No browser JavaScript errors.');
+ } finally {if(browser)await browser.close();if(server&&server.exitCode===null){await new Promise(resolve=>{server.once('exit',resolve);server.kill();});}rmSync(dir,{recursive:true,force:true});}
+})().catch(e=>{console.error(e);process.exit(1)});

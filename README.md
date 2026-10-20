@@ -1,30 +1,41 @@
 # PathToo PMO
 
-A private PMO portal implementing the foundation increment from the product specification: portfolio visibility, projects, workstreams, tasks, and RAID records. Includes fictional Northstar Health projects.
+A self-hosted PMO portal with a separate installation per customer, customer-managed users, and project access enforced by server-side APIs. Supports projects, workstreams, tasks, RAID records, portfolio dashboards, and CSV exports.
 
-## Run
+## Local development
 
-Requires Node.js 22.13+ (tested on Node 24.19). No external runtime dependencies.
+Requires Node.js 22.13+; tested with Node 24. No external runtime dependencies.
 
 ```sh
 npm start
 ```
 
-The server listens on loopback port 3000 by default. `PORT` changes the port. SQLite data lives in `.data/pmo.sqlite`; `DATA_DIR` can select another directory. Data survives server restarts. The application does not require a cloud service or API key.
+The server binds to `127.0.0.1:3000`; `PORT` and `DATA_DIR` can select an unused port and separate data directory. For a fresh development database, a private first-admin setup code is generated in `.data/setup-token` unless `PMO_ACCESS_TOKEN` is configured. Read that file locally and complete the browser setup form. Never commit it or share it in chat. Existing customer projects are preserved. New installations start empty. Optional `SEED_DEMO=true` seeds fictional projects only into a genuinely new, uninitialized database.
 
-For external hosting set `HOST` to the appropriate interface and configure `PMO_ACCESS_TOKEN` with a private random token of at least 16 characters. Supply the token through your hosting platform's secret settings, never source control. The browser prompts for it and retains it only in session storage. Use an HTTPS reverse proxy. This is single-owner token access; multi-user identity and project roles are not implemented. Loopback mode trusts access to the machine and must not be exposed through an unauthenticated proxy.
+Do not copy an initialized database as a customer template. Reuse code; provision unique settings, first-admin setup code, and an empty database for every new customer. Customer identity and account state live in that database. If serving through a reverse proxy, configure the exact HTTPS `PUBLIC_ORIGIN` (no trailing slash or path). There is no shared-token login after first-admin setup.
 
-## Features
+## Customer administration
 
-- Portfolio health, budget and forecast summaries, project directory, search and health/category filters.
-- Create/edit projects, workstreams, tasks and all six RAID types; task list and board views.
-- Project overview, work plan, workstreams, RAID and financial summary.
-- SQLite persistence, project-reference validation, revision conflicts, server-side input validation and private access option.
-- CSV portfolio export using current project filters.
-- Demo removal preserves user records; demo parents referenced by user records are retained and converted to user records.
-- Responsive layout, labeled controls, keyboard focus, accessible dialogs, and status text alongside colors.
+The first administrator names the organization and creates their email/password account. They can then add users, assign roles/projects, disable accounts, regenerate invitation links, issue reset links, rename the workspace, and inspect audit history. Links are manually shared; no email is sent. Users choose their own passwords and can sign out or change them from My account.
 
-Task-count completion uses completed tasks divided by all project tasks. Projects without tasks show a dash. Health prioritizes critical issues, milestone slippage, cost exposure, and reporting age; missing budget or published status produces Unknown unless an exception is known. Costs are grouped by currency in Reports. The home budget card summarizes USD only. Demo report dates are fictional; publishing new status snapshots is not in this increment.
+| Role | Permissions |
+| --- | --- |
+| Administrator | All customer projects, user administration, settings and audit history. |
+| Project manager | Create projects; read/write assigned projects and their plans. |
+| Contributor | Read assigned projects; create/update their tasks and RAID records. |
+| Viewer | Read-only access to assigned projects. |
+
+Non-administrators receive no automatic project visibility. API requests independently enforce roles and project scope. There is no global vendor login. Each installation has independent account/session state and cookie names. See [customer deployment and migration](deploy/CUSTOMERS.md) for detailed permissions, isolated installations, recovery, and limitations.
+
+## Application workflows
+
+- Portfolio dashboards, project search and health/category filters.
+- Projects, workstreams, task list/board, task completion, all six RAID types, financial summaries, filtered CSV exports.
+- SQLite persistence with optimistic concurrency and authored audit events.
+- Named users, salted scrypt password hashes, expiring HttpOnly sessions, CSRF protection and origin checks, single-use invitation/reset links, account/IP login throttles, immediate session invalidation on access changes, and last-admin protection.
+- Responsive layout with keyboard focus, labeled forms and dialogs.
+
+Task-count completion uses completed project tasks divided by all project tasks; no tasks displays a dash in the directory. Health evaluates critical issues, milestone slippage, cost exposure, overdue high-risk responses, and reporting age; missing required information is Unknown unless a known exception takes precedence. Currency totals are grouped in Reports; the home budget card totals USD only. Task owner text is descriptive and does not itself grant account access.
 
 ## Validate
 
@@ -32,14 +43,16 @@ Task-count completion uses completed tasks divided by all project tasks. Project
 npm test
 ```
 
-API integration tests use a temporary database and separate server to check access, persistence across restarts, health, invalid input, stale-write conflicts, and safe demo removal.
+The tests launch isolated servers on free local ports and temporary databases. They check setup, legacy migration, persistence across restarts, invitations, sessions, CSRF, permissions, account disable/reset, last-admin protection, separate customer databases/cookies, audit records, and throttling. They never use the running customer's data directory.
 
-## Scope and deployment
+An optional browser workflow test is included in `tests/browser-smoke.cjs`. It starts its own temporary customer server/database and checks setup, invitations, viewer controls, disabling, mobile overflow, logout and sign-in. Install Playwright separately in your development environment, then run `node tests/browser-smoke.cjs`. `PLAYWRIGHT_MODULE` may point to an external Playwright package; `CHROMIUM_PATH` may select an installed Chromium. No browser dependency is needed to run the portal or API suite.
 
-Approvals and Templates describe the next increments rather than simulating approved governance. Charters, baselines, change control, process coverage, dependency scheduling, reports as fixed snapshots, imports, closure, audit history, shared user identity/roles, and integrations are not implemented. This is a foundation pilot, not the complete 49-process product or a production-certified system. Demonstrate backup restoration and complete security/accessibility/performance verification before production rollout. External font loading is optional; the UI has local font fallbacks.
+## Raspberry Pi deployment and upgrades
 
-Before backups, stop the server and preserve the entire data directory, including SQLite sidecar files. No credentials should be stored in project records.
+Use [customer installation and migration instructions](deploy/CUSTOMERS.md). The installer supports the original `pathtoo` service and separately named customers, preserves data and settings, and backs up a stopped existing database before upgrade. Tailscale Serve keeps the endpoint private. Every user still needs access through the tailnet's own policy in addition to an app account.
 
-## Raspberry Pi / Tailscale hosting
+## Scope
 
-See [private Raspberry Pi deployment](deploy/RASPBERRY-PI.md) for the 64-bit Pi installer, systemd startup, persistent data paths, and Tailscale Serve access. This is separate from publishing a cloud environment snapshot.
+This release adds customer-owned accounts to the foundation portal. It does not implement a shared SaaS database, automated billing/provisioning, SSO/MFA, verified email delivery, or a vendor-wide customer control plane. Charters, approval gates, baselines, change control, dependency scheduling, immutable report snapshots, imports, and controlled closure remain later increments. Audit events are retained in the local database; they are not an external tamper-proof audit system.
+
+Validate systemd startup, Tailscale access policies, reboot persistence, recovery, accessibility and expected workload on target infrastructure before production rollout. Pre-upgrade backups are created, but an off-device backup schedule and demonstrated restore are still operational requirements. External font loading is optional; local font fallbacks are provided.
