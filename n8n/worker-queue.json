@@ -1,0 +1,650 @@
+{
+  "name": "PathToo \u00b7 Pi worker queue (protected webhook)",
+  "nodes": [
+    {
+      "id": "4fd25082-fe55-5257-936d-55e971f1c7f2",
+      "name": "Worker webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pathtoo-worker",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "26eacd31-9148-53af-b78f-91f0022d8c29"
+    },
+    {
+      "id": "47747143-9212-52fb-9bf5-5e0a4b98bf91",
+      "name": "Worker request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const body=$input.first().json.body;\nif(!body||typeof body!=='object'||!['claim','complete'].includes(body.operation)||!/^[a-z0-9_-]{3,64}$/.test(body.workerId||''))throw Error('Invalid worker request');\nif(body.operation==='complete'){\n if(!Number.isInteger(body.queueRowId)||body.queueRowId<1)throw Error('Invalid queue row ID');\n if(!/^[A-Za-z0-9_-]{8,80}$/.test(body.requestId||'')||!body.result||!['ready','error'].includes(body.result.status)||body.result.requestId!==body.requestId||JSON.stringify(body.result).length>16000)throw Error('Invalid deployment result');\n if(body.result.status==='ready'){\n  const match=body.result.portalUrl?.match(/^https:\\/\\/[a-z0-9-]+\\.[a-z0-9.-]+\\.ts\\.net(?::([0-9]{1,5}))?$/);\n  if(!match||(match[1]&&(Number(match[1])<1024||Number(match[1])>65535)))throw Error('Unexpected portal URL');\n  if(body.result.activationUrl){const prefix=body.result.portalUrl+'/#accept=';if(!body.result.activationUrl.startsWith(prefix)||!/^[a-f0-9]{64}$/.test(body.result.activationUrl.slice(prefix.length)))throw Error('Invalid activation link');}\n  if(body.result.sampleData!==false||body.result.access!=='tailscale-only')throw Error('Deployment did not confirm empty private configuration');\n }\n}\nreturn [{json:body}];\n"
+      }
+    },
+    {
+      "id": "69da4700-5837-5377-9c11-08d9156f0dee",
+      "name": "Claim request?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "460b21e6-60a1-5a57-bcb1-c6305a4b7610",
+              "leftValue": "={{ $json.operation === 'claim' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fbb66cca-7cbc-5a64-a520-7b8a465caf19",
+      "name": "Next queued job",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        -140
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pathtoo_deployments"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "workerId",
+              "condition": "eq",
+              "keyValue": "={{ $('Worker request').first().json.workerId }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "neq",
+              "keyValue": "done"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "ASC"
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "4e681401-dda1-501c-b0ef-7f884bc8ce47",
+      "name": "Choose job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -140
+      ],
+      "parameters": {
+        "jsCode": "const body=$('Worker request').first().json,row=$input.first().json;\nif(!row.id)return [{json:{hasJob:false,response:{ok:true,job:null}}}];\nconst request=JSON.parse(row.payload);\nif(row.workerId!==body.workerId||!['queued','running'].includes(row.status)||request.requestId!==row.requestId)throw Error('Invalid queued deployment');\nreturn [{json:{hasJob:true,rowId:row.id,job:request,requestId:row.requestId}}];\n"
+      }
+    },
+    {
+      "id": "f36f64d4-360d-5ed8-ae11-55d64694b425",
+      "name": "Job available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        -140
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d59636fb-1840-53e0-9bce-0a0e1ad473d7",
+              "leftValue": "={{ $json.hasJob }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "10d7e2b0-b9c6-5fa9-b844-156a6e09f056",
+      "name": "Mark running",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        -240
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pathtoo_deployments"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Choose job').first().json.rowId }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "running"
+          },
+          "schema": [
+            {
+              "id": "requestId",
+              "displayName": "requestId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workerId",
+              "displayName": "workerId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "payload",
+              "displayName": "payload",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "result",
+              "displayName": "result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "95c59f5f-c4c5-5cc4-8b23-ea7440e586c6",
+      "name": "Job response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        -240
+      ],
+      "parameters": {
+        "jsCode": "return [{json:{response:{ok:true,queueRowId:$('Choose job').first().json.rowId,job:$('Choose job').first().json.job}}}];"
+      }
+    },
+    {
+      "id": "47db53cc-4421-5c80-b999-c688b7d41ccf",
+      "name": "Find completion",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        180
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pathtoo_deployments"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Worker request').first().json.queueRowId }}"
+            },
+            {
+              "keyName": "requestId",
+              "condition": "eq",
+              "keyValue": "={{ $('Worker request').first().json.requestId }}"
+            },
+            {
+              "keyName": "workerId",
+              "condition": "eq",
+              "keyValue": "={{ $('Worker request').first().json.workerId }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "ASC"
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "76320aa5-e541-500f-bc9f-e35698dddb57",
+      "name": "Check completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        180
+      ],
+      "parameters": {
+        "jsCode": "const body=$('Worker request').first().json,row=$input.first().json;\nif(!row.id||row.id!==body.queueRowId||row.requestId!==body.requestId||row.workerId!==body.workerId)throw Error('No matching deployment request');\nreturn [{json:{alreadyDone:row.status==='done',requestId:body.requestId,result:JSON.stringify(body.result),response:{ok:true,requestId:body.requestId}}}];\n"
+      }
+    },
+    {
+      "id": "b6dc6e22-76fb-5c0c-bbce-000caec3f89e",
+      "name": "Result already stored?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        180
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e68d3df0-98dc-5090-9935-ad43d4139e15",
+              "leftValue": "={{ $json.alreadyDone }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c30e148f-46ad-5484-9178-a3df3d1c7aec",
+      "name": "Store result",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        280
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pathtoo_deployments"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Worker request').first().json.queueRowId }}"
+            },
+            {
+              "keyName": "requestId",
+              "condition": "eq",
+              "keyValue": "={{ $('Worker request').first().json.requestId }}"
+            },
+            {
+              "keyName": "workerId",
+              "condition": "eq",
+              "keyValue": "={{ $('Worker request').first().json.workerId }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "done",
+            "result": "={{ $('Check completion').first().json.result }}"
+          },
+          "schema": [
+            {
+              "id": "requestId",
+              "displayName": "requestId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workerId",
+              "displayName": "workerId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "payload",
+              "displayName": "payload",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "result",
+              "displayName": "result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "4d15bfa1-ba0e-5025-899d-372a473c3d1d",
+      "name": "Completion response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        180
+      ],
+      "parameters": {
+        "jsCode": "return [{json:{response:{ok:true,requestId:$('Worker request').first().json.requestId}}}];"
+      }
+    },
+    {
+      "id": "0bee7b8f-ecac-52d7-a855-098135e133bd",
+      "name": "Respond to worker",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Worker webhook": {
+      "main": [
+        [
+          {
+            "node": "Worker request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Worker request": {
+      "main": [
+        [
+          {
+            "node": "Claim request?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim request?": {
+      "main": [
+        [
+          {
+            "node": "Next queued job",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next queued job": {
+      "main": [
+        [
+          {
+            "node": "Choose job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose job": {
+      "main": [
+        [
+          {
+            "node": "Job available?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job available?": {
+      "main": [
+        [
+          {
+            "node": "Mark running",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark running": {
+      "main": [
+        [
+          {
+            "node": "Job response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job response": {
+      "main": [
+        [
+          {
+            "node": "Respond to worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find completion": {
+      "main": [
+        [
+          {
+            "node": "Check completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check completion": {
+      "main": [
+        [
+          {
+            "node": "Result already stored?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Result already stored?": {
+      "main": [
+        [
+          {
+            "node": "Completion response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store result": {
+      "main": [
+        [
+          {
+            "node": "Completion response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Completion response": {
+      "main": [
+        [
+          {
+            "node": "Respond to worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false,
+    "executionTimeout": 900
+  },
+  "pinData": {},
+  "tags": []
+}

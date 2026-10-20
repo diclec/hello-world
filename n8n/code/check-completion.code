@@ -1,0 +1,3 @@
+const body=$('Worker request').first().json,row=$input.first().json;
+if(!row.id||row.id!==body.queueRowId||row.requestId!==body.requestId||row.workerId!==body.workerId)throw Error('No matching deployment request');
+return [{json:{alreadyDone:row.status==='done',requestId:body.requestId,result:JSON.stringify(body.result),response:{ok:true,requestId:body.requestId}}}];

@@ -1,0 +1,4 @@
+const prepared=$('Prepare deployment').first().json;
+const row=$input.first().json;
+if(row.id&& (row.payload!==prepared.payload||row.workerId!==prepared.workerId))return [{json:{conflict:true,response:{status:'error',code:'REQUEST_CONFLICT',requestId:prepared.requestId,message:'This requestId already belongs to different customer information. No deployment was changed.'}}}];
+return [{json:{...prepared,exists:!!row.id,conflict:false}}];

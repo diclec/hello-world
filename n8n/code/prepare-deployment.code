@@ -1,0 +1,9 @@
+const input=$input.first().json;
+const fields={customerName:input.customerName,adminName:input.adminName,adminEmail:input.adminEmail};
+const missing=Object.keys(fields).filter(key=>typeof fields[key]!=='string'||!fields[key].trim());
+if(missing.length)return [{json:{valid:false,response:{status:'needs_input',missing,questions:missing.map(key=>({customerName:'What is the customer name?',adminName:'What is the first administrator’s full name?',adminEmail:'What is the first administrator’s email address?'}[key]))}}}];
+const requestId=input.requestId||'n8n_'+String($execution.id).padStart(12,'0');
+if(!/^[A-Za-z0-9_-]{8,80}$/.test(requestId))throw Error('Invalid requestId');
+const request={requestId,customerName:fields.customerName.trim(),adminName:fields.adminName.trim(),adminEmail:fields.adminEmail.trim().toLowerCase()};
+if(request.customerName.length>160||request.adminName.length>160||/[\x00-\x1f\x7f]/.test(request.customerName+request.adminName)||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(request.adminEmail)||request.adminEmail.length>254)throw Error('Provide a valid customer name, administrator name and email');
+return [{json:{valid:true,requestId,workerId:'pi-ny-db1',payload:JSON.stringify(request)}}];

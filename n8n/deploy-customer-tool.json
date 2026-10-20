@@ -1,0 +1,568 @@
+{
+  "name": "PathToo \u00b7 Deploy customer (agent tool)",
+  "nodes": [
+    {
+      "id": "5f3fd6f4-1512-50bb-b19e-76875c898a56",
+      "name": "Agent input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "customerName",
+              "type": "string"
+            },
+            {
+              "name": "adminName",
+              "type": "string"
+            },
+            {
+              "name": "adminEmail",
+              "type": "string"
+            },
+            {
+              "name": "requestId",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c7a51274-e713-51b1-ad57-281a7758ecc1",
+      "name": "Prepare deployment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const input=$input.first().json;\nconst fields={customerName:input.customerName,adminName:input.adminName,adminEmail:input.adminEmail};\nconst missing=Object.keys(fields).filter(key=>typeof fields[key]!=='string'||!fields[key].trim());\nif(missing.length)return [{json:{valid:false,response:{status:'needs_input',missing,questions:missing.map(key=>({customerName:'What is the customer name?',adminName:'What is the first administrator\u2019s full name?',adminEmail:'What is the first administrator\u2019s email address?'}[key]))}}}];\nconst requestId=input.requestId||'n8n_'+String($execution.id).padStart(12,'0');\nif(!/^[A-Za-z0-9_-]{8,80}$/.test(requestId))throw Error('Invalid requestId');\nconst request={requestId,customerName:fields.customerName.trim(),adminName:fields.adminName.trim(),adminEmail:fields.adminEmail.trim().toLowerCase()};\nif(request.customerName.length>160||request.adminName.length>160||/[\\x00-\\x1f\\x7f]/.test(request.customerName+request.adminName)||! /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(request.adminEmail)||request.adminEmail.length>254)throw Error('Provide a valid customer name, administrator name and email');\nreturn [{json:{valid:true,requestId,workerId:'pi-ny-db1',payload:JSON.stringify(request)}}];\n"
+      }
+    },
+    {
+      "id": "4a819280-48d2-586c-b211-f3e0b1611d24",
+      "name": "Complete input?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2050f168-c3c6-5a15-9e16-3b2d002d29e9",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "771ee263-5f37-587b-8e96-f988f89233b9",
+      "name": "Find existing",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pathtoo_deployments"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "requestId",
+              "condition": "eq",
+              "keyValue": "={{ $('Prepare deployment').first().json.requestId }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "ASC"
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "e034fcb5-cce2-547e-91f3-bf1665a6d94f",
+      "name": "Check existing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const prepared=$('Prepare deployment').first().json;\nconst row=$input.first().json;\nif(row.id&& (row.payload!==prepared.payload||row.workerId!==prepared.workerId))return [{json:{conflict:true,response:{status:'error',code:'REQUEST_CONFLICT',requestId:prepared.requestId,message:'This requestId already belongs to different customer information. No deployment was changed.'}}}];\nreturn [{json:{...prepared,exists:!!row.id,conflict:false}}];\n"
+      }
+    },
+    {
+      "id": "3e3deaa9-8120-5a8a-9e45-8f35a127fe1b",
+      "name": "Request conflict?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "38780bad-189a-5665-a740-36fd03953bf4",
+              "leftValue": "={{ $json.conflict }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ea611d29-6902-5a3d-9972-75205748e49d",
+      "name": "Already queued?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "623c1fca-308b-551b-9c6f-e640f9b66702",
+              "leftValue": "={{ $json.exists }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6b04213b-d49e-5748-bca2-867f96b7446f",
+      "name": "Queue deployment",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1540,
+        100
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pathtoo_deployments"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": []
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "requestId": "={{ $('Prepare deployment').first().json.requestId }}",
+            "workerId": "={{ $('Prepare deployment').first().json.workerId }}",
+            "payload": "={{ $('Prepare deployment').first().json.payload }}",
+            "status": "queued",
+            "result": ""
+          },
+          "schema": [
+            {
+              "id": "requestId",
+              "displayName": "requestId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workerId",
+              "displayName": "workerId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "payload",
+              "displayName": "payload",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "result",
+              "displayName": "result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "9428fd7b-7589-5d5b-8630-41850fad1583",
+      "name": "Wait for Pi",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "webhookId": "d2d0b205-f181-5edd-b188-e11edcd204f8"
+    },
+    {
+      "id": "ec1fe711-1572-5132-af36-32adf2e1875c",
+      "name": "Read result",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "pathtoo_deployments"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "requestId",
+              "condition": "eq",
+              "keyValue": "={{ $('Prepare deployment').first().json.requestId }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "ASC"
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "1225b118-db59-5266-be38-68a10d6bfd30",
+      "name": "Check result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const prepared=$('Prepare deployment').first().json,row=$input.first().json;\nif(!row.id)throw Error('Deployment queue row is missing');\nif(row.payload!==prepared.payload||row.workerId!==prepared.workerId)return [{json:{done:true,response:{status:'error',requestId:prepared.requestId,code:'REQUEST_CONFLICT',message:'Queue request identity does not match. No customer link was returned.'}}}];\nif(row.status==='done'){const response=JSON.parse(row.result);if(response.status==='ready'&&response.activationUrl&&Date.parse(response.activationExpiresAt)<=Date.now()){response.activationUrl=null;response.activationExpiresAt=null;response.requiresAdminLinkRecovery=true;}return [{json:{done:true,response}}];}\nif($runIndex>=40)return [{json:{done:true,response:{status:'pending',requestId:prepared.requestId,message:'Deployment is still queued or running. Check the Pi worker. Call this tool again with the same details and requestId to resume waiting; do not create another customer request.'}}}];\nreturn [{json:{done:false}}];\n"
+      }
+    },
+    {
+      "id": "7756f010-7125-5951-8a41-bedf5d4f0a59",
+      "name": "Finished?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2e23fb5a-68d5-5f84-8157-7a52581da7f8",
+              "leftValue": "={{ $json.done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "bb6f4796-953a-5ddb-94dd-192c3ff9715d",
+      "name": "Answer agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -180
+      ],
+      "parameters": {
+        "jsCode": "return [{json:$input.first().json.response}];"
+      }
+    }
+  ],
+  "connections": {
+    "Agent input": {
+      "main": [
+        [
+          {
+            "node": "Prepare deployment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare deployment": {
+      "main": [
+        [
+          {
+            "node": "Complete input?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete input?": {
+      "main": [
+        [
+          {
+            "node": "Find existing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find existing": {
+      "main": [
+        [
+          {
+            "node": "Check existing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check existing": {
+      "main": [
+        [
+          {
+            "node": "Request conflict?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request conflict?": {
+      "main": [
+        [
+          {
+            "node": "Answer agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Already queued?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already queued?": {
+      "main": [
+        [
+          {
+            "node": "Wait for Pi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue deployment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue deployment": {
+      "main": [
+        [
+          {
+            "node": "Wait for Pi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Pi": {
+      "main": [
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read result": {
+      "main": [
+        [
+          {
+            "node": "Check result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check result": {
+      "main": [
+        [
+          {
+            "node": "Finished?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finished?": {
+      "main": [
+        [
+          {
+            "node": "Answer agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait for Pi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false,
+    "executionTimeout": 900
+  },
+  "pinData": {},
+  "tags": []
+}

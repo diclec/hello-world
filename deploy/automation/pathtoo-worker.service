@@ -1,0 +1,22 @@
+[Unit]
+Description=PathToo outbound customer deployment worker
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pathtoo-automation
+Group=pathtoo-automation
+EnvironmentFile=/etc/pathtoo-worker.env
+ExecStart=/opt/pathtoo-node/bin/node /opt/pathtoo-provisioner/current/deploy/automation/worker.mjs
+WorkingDirectory=/var/lib/pathtoo-worker
+Restart=on-failure
+RestartSec=15
+UMask=0077
+# This account requires its narrowly scoped sudo wrapper. NoNewPrivileges would disable it.
+# Root provisioner and systemd child services need the host mount namespace.
+TimeoutStopSec=660
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+const body=$input.first().json.body;
+if(!body||typeof body!=='object'||!['claim','complete'].includes(body.operation)||!/^[a-z0-9_-]{3,64}$/.test(body.workerId||''))throw Error('Invalid worker request');
+if(body.operation==='complete'){
+ if(!Number.isInteger(body.queueRowId)||body.queueRowId<1)throw Error('Invalid queue row ID');
+ if(!/^[A-Za-z0-9_-]{8,80}$/.test(body.requestId||'')||!body.result||!['ready','error'].includes(body.result.status)||body.result.requestId!==body.requestId||JSON.stringify(body.result).length>16000)throw Error('Invalid deployment result');
+ if(body.result.status==='ready'){
+  const match=body.result.portalUrl?.match(/^https:\/\/[a-z0-9-]+\.[a-z0-9.-]+\.ts\.net(?::([0-9]{1,5}))?$/);
+  if(!match||(match[1]&&(Number(match[1])<1024||Number(match[1])>65535)))throw Error('Unexpected portal URL');
+  if(body.result.activationUrl){const prefix=body.result.portalUrl+'/#accept=';if(!body.result.activationUrl.startsWith(prefix)||!/^[a-f0-9]{64}$/.test(body.result.activationUrl.slice(prefix.length)))throw Error('Invalid activation link');}
+  if(body.result.sampleData!==false||body.result.access!=='tailscale-only')throw Error('Deployment did not confirm empty private configuration');
+ }
+}
+return [{json:body}];

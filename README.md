@@ -56,3 +56,7 @@ Use [customer installation and migration instructions](deploy/CUSTOMERS.md). The
 This release adds customer-owned accounts to the foundation portal. It does not implement a shared SaaS database, automated billing/provisioning, SSO/MFA, verified email delivery, or a vendor-wide customer control plane. Charters, approval gates, baselines, change control, dependency scheduling, immutable report snapshots, imports, and controlled closure remain later increments. Audit events are retained in the local database; they are not an external tamper-proof audit system.
 
 Validate systemd startup, Tailscale access policies, reboot persistence, recovery, accessibility and expected workload on target infrastructure before production rollout. Pre-upgrade backups are created, but an off-device backup schedule and demonstrated restore are still operational requirements. External font loading is optional; local font fallbacks are provided.
+
+## Automated customer provisioning with n8n Cloud
+
+Use [the automation setup guide](deploy/AUTOMATION.md) to install an outbound Pi worker and import the workflows in `n8n/`. A private agent collects only customer name and the first administrator's name/email. The Pi allocates folders/services/ports, starts an empty customer database, creates a single-use administrator activation link, verifies private HTTPS, and returns the links through n8n. No public Pi webhook, public SSH, or administrator password in the agent is required. See [agent instructions](n8n/AGENT-INSTRUCTIONS.md).

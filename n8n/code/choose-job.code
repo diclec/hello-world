@@ -1,0 +1,5 @@
+const body=$('Worker request').first().json,row=$input.first().json;
+if(!row.id)return [{json:{hasJob:false,response:{ok:true,job:null}}}];
+const request=JSON.parse(row.payload);
+if(row.workerId!==body.workerId||!['queued','running'].includes(row.status)||request.requestId!==row.requestId)throw Error('Invalid queued deployment');
+return [{json:{hasJob:true,rowId:row.id,job:request,requestId:row.requestId}}];

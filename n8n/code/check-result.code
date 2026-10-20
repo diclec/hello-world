@@ -1,0 +1,6 @@
+const prepared=$('Prepare deployment').first().json,row=$input.first().json;
+if(!row.id)throw Error('Deployment queue row is missing');
+if(row.payload!==prepared.payload||row.workerId!==prepared.workerId)return [{json:{done:true,response:{status:'error',requestId:prepared.requestId,code:'REQUEST_CONFLICT',message:'Queue request identity does not match. No customer link was returned.'}}}];
+if(row.status==='done'){const response=JSON.parse(row.result);if(response.status==='ready'&&response.activationUrl&&Date.parse(response.activationExpiresAt)<=Date.now()){response.activationUrl=null;response.activationExpiresAt=null;response.requiresAdminLinkRecovery=true;}return [{json:{done:true,response}}];}
+if($runIndex>=40)return [{json:{done:true,response:{status:'pending',requestId:prepared.requestId,message:'Deployment is still queued or running. Check the Pi worker. Call this tool again with the same details and requestId to resume waiting; do not create another customer request.'}}}];
+return [{json:{done:false}}];
