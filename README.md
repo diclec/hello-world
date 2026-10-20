@@ -1,6 +1,6 @@
 # PathToo PMO
 
-A self-hosted PMO portal with a separate installation per customer, customer-managed users, and project access enforced by server-side APIs. Supports projects, workstreams, tasks, RAID records, portfolio dashboards, and CSV exports.
+A self-hosted PMO portal with a separate installation per customer, customer-managed users, and project access enforced by server-side APIs. Supports multiple portfolios, programs, projects, workstreams, tasks, RAID records, scoped dashboards, and CSV exports.
 
 ## Local development
 
@@ -21,7 +21,7 @@ The first administrator names the organization and creates their email/password 
 | Role | Permissions |
 | --- | --- |
 | Administrator | All customer projects, user administration, settings and audit history. |
-| Project manager | Create projects; read/write assigned projects and their plans. |
+| Project manager | Create portfolios, programs and projects; edit their own portfolios/programs; read/write assigned projects and their plans. |
 | Contributor | Read assigned projects; create/update their tasks and RAID records. |
 | Viewer | Read-only access to assigned projects. |
 
@@ -29,7 +29,8 @@ Non-administrators receive no automatic project visibility. API requests indepen
 
 ## Application workflows
 
-- Portfolio dashboards, project search and health/category filters.
+- Create and edit portfolios and programs; assign projects to a portfolio and optionally a program.
+- Portfolio/program selectors scope dashboards, project search, work, reports and CSV exports; health/category filters remain available.
 - Projects, workstreams, task list/board, task completion, all six RAID types, financial summaries, filtered CSV exports.
 - SQLite persistence with optimistic concurrency and authored audit events.
 - Named users, salted scrypt password hashes, expiring HttpOnly sessions, CSRF protection and origin checks, single-use invitation/reset links, account/IP login throttles, immediate session invalidation on access changes, and last-admin protection.
@@ -37,15 +38,17 @@ Non-administrators receive no automatic project visibility. API requests indepen
 
 Task-count completion uses completed project tasks divided by all project tasks; no tasks displays a dash in the directory. Health evaluates critical issues, milestone slippage, cost exposure, overdue high-risk responses, and reporting age; missing required information is Unknown unless a known exception takes precedence. Currency totals are grouped in Reports; the home budget card totals USD only. Task owner text is descriptive and does not itself grant account access.
 
+Existing projects remain **Unassigned** until edited to select a portfolio. Programs belong to one portfolio; a project can belong directly to a portfolio or to one of its programs. Move a program's projects out before changing its parent portfolio. Administrators manage all portfolios/programs; project managers create and edit their own. Other users see the ancestors of their assigned projects. Seeing a portfolio or program never grants access to its other projects. Fresh customer installations still start without portfolios, programs or sample data.
+
 ## Validate
 
 ```sh
 npm test
 ```
 
-The tests launch isolated servers on free local ports and temporary databases. They check setup, legacy migration, persistence across restarts, invitations, sessions, CSRF, permissions, account disable/reset, last-admin protection, separate customer databases/cookies, audit records, and throttling. They never use the running customer's data directory.
+The tests launch isolated servers on free local ports and temporary databases. They check setup, legacy migration, persistence across restarts, invitations, sessions, CSRF, permissions, account disable/reset, last-admin protection, separate customer databases/cookies, hierarchy validation and visibility, project moves, audit records, and throttling. They never use the running customer's data directory.
 
-An optional browser workflow test is included in `tests/browser-smoke.cjs`. It starts its own temporary customer server/database and checks setup, invitations, viewer controls, disabling, mobile overflow, logout and sign-in. Install Playwright separately in your development environment, then run `node tests/browser-smoke.cjs`. `PLAYWRIGHT_MODULE` may point to an external Playwright package; `CHROMIUM_PATH` may select an installed Chromium. No browser dependency is needed to run the portal or API suite.
+An optional browser workflow test is included in `tests/browser-smoke.cjs`. It starts its own temporary customer server/database and checks setup, portfolio/program/project creation, scope switching, project moves, invitations, viewer controls, disabling, mobile overflow, logout and sign-in. Install Playwright separately in your development environment, then run `node tests/browser-smoke.cjs`. `PLAYWRIGHT_MODULE` may point to an external Playwright package; `CHROMIUM_PATH` may select an installed Chromium. No browser dependency is needed to run the portal or API suite.
 
 ## Raspberry Pi deployment and upgrades
 
@@ -53,7 +56,7 @@ Use [customer installation and migration instructions](deploy/CUSTOMERS.md). The
 
 ## Scope
 
-This release adds customer-owned accounts to the foundation portal. It does not implement a shared SaaS database, automated billing/provisioning, SSO/MFA, verified email delivery, or a vendor-wide customer control plane. Charters, approval gates, baselines, change control, dependency scheduling, immutable report snapshots, imports, and controlled closure remain later increments. Audit events are retained in the local database; they are not an external tamper-proof audit system.
+This release adds customer-owned accounts to the foundation portal. It does not implement a shared SaaS database, automated billing, SSO/MFA, verified email delivery, or a vendor-wide customer control plane. Charters, approval gates, baselines, change control, dependency scheduling, immutable report snapshots, imports, and controlled closure remain later increments. Audit events are retained in the local database; they are not an external tamper-proof audit system.
 
 Validate systemd startup, Tailscale access policies, reboot persistence, recovery, accessibility and expected workload on target infrastructure before production rollout. Pre-upgrade backups are created, but an off-device backup schedule and demonstrated restore are still operational requirements. External font loading is optional; local font fallbacks are provided.
 

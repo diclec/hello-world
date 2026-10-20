@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createAuth, readJSON } from './auth.js';
+import { createHierarchy } from './hierarchy.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(root,'.data'); mkdirSync(dataDir,{recursive:true,mode:0o700});
 const db = new DatabaseSync(path.join(dataDir,'pmo.sqlite')); db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, data TEXT NOT NULL);');
@@ -32,6 +33,7 @@ if(!get('initialized')){
 function health(p){const issues=all('raid').some(r=>r.projectId===p.id&&r.type==='Issue'&&r.severity==='Critical'&&r.status!=='Resolved');const variance=p.budget?(p.forecast-p.budget)/p.budget:null;const stale=p.lastReport&&Date.now()-Date.parse(p.lastReport)>7*86400000;const overdueRisk=all('raid').some(r=>r.projectId===p.id&&r.type==='Risk'&&['High','Critical'].includes(r.severity)&&r.status!=='Resolved'&&r.due&&r.due<new Date().toISOString().slice(0,10)); if(issues||p.slip>10||variance>.1)return 'At risk'; if(p.slip>0||variance>0||stale||overdueRisk)return 'Needs attention';if(!p.budget||!p.lastReport)return 'Unknown';return 'On track';}
 const host = process.env.HOST || '127.0.0.1';
 const auth = createAuth(db,{dataDir,host});
+const hierarchy=createHierarchy({all,put,auth});
 const types=['projects','tasks','raid','workstreams'];
 const server=http.createServer(async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cache-Control','no-store');
@@ -42,9 +44,10 @@ const server=http.createServer(async(req,res)=>{
  if(await auth.handle(req,res,url,send))return;
  if(!['GET','HEAD'].includes(req.method))await readJSON(req);
  const actor=auth.requireUser(req);
+ if(await hierarchy.handle(req,url,actor,send))return;
  if(url.pathname==='/api/workspace'&&req.method==='GET'){
  const projects=all('projects').filter(p=>auth.canRead(actor,p.id));const ids=new Set(projects.map(p=>p.id));
- return send(200,{projects:projects.map(p=>({...p,health:health(p)})),tasks:all('tasks').filter(r=>ids.has(r.projectId)),raid:all('raid').filter(r=>ids.has(r.projectId)),workstreams:all('workstreams').filter(r=>ids.has(r.projectId))});
+ return send(200,{...hierarchy.visible(actor),projects:projects.map(p=>({...p,health:health(p)})),tasks:all('tasks').filter(r=>ids.has(r.projectId)),raid:all('raid').filter(r=>ids.has(r.projectId)),workstreams:all('workstreams').filter(r=>ids.has(r.projectId))});
  }
  if(url.pathname==='/api/demo'&&req.method==='DELETE'){auth.admin(actor);db.exec('BEGIN');try{const userRecords=types.filter(k=>k!=='projects').flatMap(all).filter(r=>!r.demo);const retainedProjects=new Set(userRecords.map(r=>r.projectId));const retainedStreams=new Set(userRecords.map(r=>r.workstreamId));for(const kind of types)for(const r of all(kind))if(r.demo){if((kind==='projects'&&retainedProjects.has(r.id))||(kind==='workstreams'&&retainedStreams.has(r.id))){put(kind,{...r,demo:false,revision:r.revision+1});}else db.prepare('DELETE FROM records WHERE id=?').run(r.id);}auth.audit(actor,'demo.removed');db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}return send(200,{ok:true});}
  const [, ,kind,id]=url.pathname.split('/');if(!types.includes(kind))return send(404,{error:'Not found'});
@@ -61,6 +64,7 @@ const server=http.createServer(async(req,res)=>{
  if(kind!=='projects'&&!all('projects').some(p=>p.id===r.projectId))return send(400,{error:'Select a valid project'});
  const project=kind==='projects'?old:get(r.projectId);if(project?.status==='Closed'||(kind!=='projects'&&old&&get(old.projectId)?.status==='Closed'))return send(409,{error:'Closed projects are read-only'});
  if(kind==='projects'){
+ hierarchy.validateProject(actor,r);
  r.category=r.category||'Infrastructure';r.owner=r.owner||actor.name;
  if(!['Draft','Pending Authorization','Authorized','Active','Closing','Closed','On Hold','Canceled'].includes(r.status))return send(400,{error:'Invalid project status'});
  if(['Closed','Canceled'].includes(r.status))return send(400,{error:'Controlled closure and cancellation are not available in this increment'});
@@ -76,7 +80,7 @@ const server=http.createServer(async(req,res)=>{
  }
  return send(405,{error:'Method not allowed'});
  }
- const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
+ const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
  res.writeHead(200,{'Content-Type':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'text/html','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'"});res.end(readFileSync(path.join(root,'public',file)));
  }catch(e){send(e.status||(e instanceof SyntaxError?400:500),{error:e.status?e.message:e instanceof SyntaxError?'Invalid JSON':'Request failed'});}
 });

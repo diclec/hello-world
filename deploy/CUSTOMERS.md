@@ -9,11 +9,19 @@ Customer administrators manage their own users from **Administration → Users &
 | Role | Access |
 | --- | --- |
 | Administrator | All projects and workspace administration, including users and organization name. |
-| Project manager | Read/write assigned projects and workstreams; create projects and automatically gain access to those projects. |
+| Project manager | Read/write assigned projects and workstreams; create projects and automatically gain access to those projects; create portfolios/programs and edit their own. |
 | Contributor | Read assigned projects; create/update tasks and RAID records within them. Cannot change project plans or administer users. |
 | Viewer | Read-only access to assigned projects, including their reports and costs. |
 
 Non-administrators have no access until projects are assigned. Merely appearing in a task's owner text does not grant access. Users cannot grant themselves access by changing that text. Financial data follows project access; separate field-level commercial permissions are not implemented. User changes revoke all of that user's sessions and outstanding invitation/reset links; enforcement takes effect on the next request. At least one active administrator must remain. All administrators are equally privileged within their own installation.
+
+## Multiple portfolios and programs
+
+Use **New portfolio**, **New program**, or **New project** on the home page or directories. Each program belongs to a portfolio. Projects can be unassigned, belong directly to a portfolio, or belong to one of its programs. Edit a project to change its placement; existing project memberships stay intact. A program with projects must have those projects moved out before its parent portfolio can change.
+
+The portfolio and program selectors scope dashboards, projects, work, reports and exports. Administrators can manage every container; managers can create containers and edit their own. Users see only containers they own as managers or that contain their accessible projects. Container visibility never grants access to sibling projects. Fresh installations have no portfolios, programs or sample projects. Existing projects remain under **Unassigned projects** until placed in a portfolio.
+
+For an existing account-enabled installation, follow upgrade steps 1–2 below and sign in normally; first-administrator setup is not repeated. Upgrade each named customer separately using its existing slug, origin and port. If using the n8n worker, also update its source bundle by rerunning `sudo bash deploy/install-provisioner.sh` from the updated checkout, then `sudo systemctl start pathtoo-worker` with the existing worker configuration.
 
 ## Upgrade your existing Raspberry Pi installation
 
