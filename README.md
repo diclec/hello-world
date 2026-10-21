@@ -30,7 +30,7 @@ Non-administrators receive no automatic project visibility. API requests indepen
 ## Application workflows
 
 - Create and edit portfolios and programs; assign projects to a portfolio and optionally a program.
-- Portfolio/program selectors scope dashboards, project search, work, reports and CSV exports; health/category filters remain available.
+- Portfolio Home shows a global overview of accessible projects, six summary boxes, and expandable portfolio/program/project lists. Portfolio/program selectors remain on project, work, report and directory pages; health/category filters remain available there.
 - Per-project Schedule with automatic WBS numbering, nested subtasks, date/duration/progress fields, finish-to-start dependencies, milestones, summary rollups, automatic successor rescheduling, Gantt chart and schedule CSV exports.
 - Projects, workstreams, task list/board, task completion, all six RAID types, financial summaries, filtered CSV exports.
 - SQLite persistence with optimistic concurrency and authored audit events.
@@ -40,6 +40,14 @@ Non-administrators receive no automatic project visibility. API requests indepen
 Task-count completion uses completed project tasks divided by all project tasks; no tasks displays a dash in the directory. Health evaluates critical issues, milestone slippage, cost exposure, overdue high-risk responses, and reporting age; missing required information is Unknown unless a known exception takes precedence. Currency totals are grouped in Reports and portfolio/program cards. Task owner text is descriptive and does not itself grant account access.
 
 Existing projects remain **Unassigned** until edited to select a portfolio. Programs belong to one portfolio; a project can belong directly to a portfolio or to one of its programs. Move a program's projects out before changing its parent portfolio. Administrators manage all portfolios/programs; project managers create and edit their own. Other users see the ancestors of their assigned projects. Seeing a portfolio or program never grants access to its other projects. Fresh customer installations still start without portfolios, programs or sample data.
+
+## Portfolio overview
+
+Portfolio Home starts with a pinned, personalized Welcome section and has no portfolio or program filters. Its six summary boxes show Total Projects, Active Projects (status Active), Completed Projects (status Closed), Overall Health, Total Budgeting, and Projects requiring intervention. All figures use the signed-in user’s accessible projects regardless of scopes selected on other pages. Budgets and forecasts remain separated by currency. Intervention means an ongoing project is At risk, Needs attention, or has an overdue incomplete schedule milestone. Overall health uses the worst ongoing project health, treating missing data as Unknown unless a known exception takes precedence.
+
+Each expandable portfolio row shows health trends, financial totals/variance, milestone delivery, capacity, risks and dependencies. Expand programs to see their projects; direct projects appear beneath the portfolio. Unassigned projects remain accessible in their own expandable group. Selecting a project opens its workspace. Opening a portfolio or program from its separate directory opens its scoped project directory.
+
+Health history records the latest observed health per project per UTC day when an authorized user loads the workspace. The overview compares up to 14 observed days from the last 30 days for the currently accessible ongoing projects. Missing or insufficient history is labeled as collecting; older history is not invented. Snapshots persist in the customer database, with access enforced per project. Capacity counts open leaf tasks, descriptive task owners and unassigned work; staff availability and utilization are not recorded. Milestone delivery uses zero-duration leaf schedule tasks. Risks use unresolved RAID risks; dependencies show leaf-task predecessor links and unresolved RAID Dependency records. New customers still start empty.
 
 ## Project schedules
 

@@ -5,6 +5,7 @@ import { createServer } from 'node:net';
 import { mkdtempSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 const directory=mkdtempSync(path.join(tmpdir(),'pathtoo-hierarchy-'));
 let port,child,admin,manager,viewer,contributor,p1,p2,g1,g2,project,hiddenProject;
 const password='hierarchy-test-passphrase';
@@ -70,4 +71,18 @@ test('empty program can move portfolios; changes persist without re-seeding on r
  assert.equal((await req('programs/'+empty.id,'PATCH',{revision:1,portfolioId:p2.id})).status,200);
  assert.equal((await req('programs/'+empty.id,'PATCH',{revision:1,name:'Stale'})).status,409);
  const snapshot=(await req('workspace')).data;await stop();await start();const restored=(await req('workspace')).data;assert.deepEqual(restored,snapshot);
+});
+
+test('health history uses observed daily values, stays within project access, and refreshes today without duplicates',async()=>{
+ const database=new DatabaseSync(path.join(directory,'pmo.sqlite'));
+ const prior=new Date(Date.now()-86400000).toISOString().slice(0,10),expired=new Date(Date.now()-35*86400000).toISOString().slice(0,10);
+ const put=database.prepare('INSERT OR REPLACE INTO health_snapshots VALUES(?,?,?)');put.run(project.id,prior,'On track');put.run(hiddenProject.id,prior,'At risk');put.run(project.id,expired,'At risk');database.close();
+ const changed=await req('projects/'+project.id,'PATCH',{revision:project.revision,forecast:600});assert.equal(changed.status,200);project=changed.data;
+ const ws=(await req('workspace','GET',undefined,viewer)).data;
+ assert.ok(ws.healthHistory.some(r=>r.day===prior&&r.health==='On track'));
+ assert.ok(ws.healthHistory.some(r=>r.day===new Date().toISOString().slice(0,10)&&r.health==='At risk'));
+ assert.ok(ws.healthHistory.every(r=>r.projectId===project.id&&r.day!==expired));
+ assert.deepEqual((await req('workspace','GET',undefined,viewer)).data.healthHistory,ws.healthHistory);
+ const restored=await req('projects/'+project.id,'PATCH',{revision:project.revision,forecast:100});assert.equal(restored.status,200);project=restored.data;
+ const refreshed=(await req('workspace','GET',undefined,viewer)).data.healthHistory;assert.equal(refreshed.filter(r=>r.day===new Date().toISOString().slice(0,10)).length,1);assert.equal(refreshed.find(r=>r.day===new Date().toISOString().slice(0,10)).health,'Unknown');
 });

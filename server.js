@@ -10,6 +10,7 @@ import { createSchedule } from './schedule.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(root,'.data'); mkdirSync(dataDir,{recursive:true,mode:0o700});
 const db = new DatabaseSync(path.join(dataDir,'pmo.sqlite')); db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, data TEXT NOT NULL);');
+db.exec('CREATE TABLE IF NOT EXISTS health_snapshots(project_id TEXT NOT NULL, day TEXT NOT NULL, health TEXT NOT NULL, PRIMARY KEY(project_id,day));');
 const all = kind => db.prepare('SELECT data FROM records WHERE kind=?').all(kind).map(r=>JSON.parse(r.data));
 const get = id => { const r=db.prepare('SELECT data FROM records WHERE id=?').get(id); return r&&JSON.parse(r.data); };
 const put = (kind,r) => db.prepare('INSERT OR REPLACE INTO records VALUES(?,?,?)').run(r.id,kind,JSON.stringify(r));
@@ -49,8 +50,12 @@ const server=http.createServer(async(req,res)=>{
  const actor=auth.requireUser(req);
  if(await hierarchy.handle(req,url,actor,send))return;
  if(url.pathname==='/api/workspace'&&req.method==='GET'){
- const projects=all('projects').filter(p=>auth.canRead(actor,p.id));const ids=new Set(projects.map(p=>p.id));
- return send(200,{...hierarchy.visible(actor),projects:projects.map(p=>({...p,health:health(p)})),tasks:all('tasks').filter(r=>ids.has(r.projectId)),raid:all('raid').filter(r=>ids.has(r.projectId)),workstreams:all('workstreams').filter(r=>ids.has(r.projectId))});
+ const projects=all('projects').filter(p=>auth.canRead(actor,p.id)).map(p=>({...p,health:health(p)}));const ids=new Set(projects.map(p=>p.id));
+ const snapshotDay=new Date().toISOString().slice(0,10);const cutoff=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+ const snapshot=db.prepare('INSERT INTO health_snapshots VALUES(?,?,?) ON CONFLICT(project_id,day) DO UPDATE SET health=excluded.health WHERE health<>excluded.health');
+ auth.transaction(()=>{for(const p of projects)snapshot.run(p.id,snapshotDay,p.health);});
+ const healthHistory=projects.flatMap(p=>db.prepare('SELECT day,health FROM health_snapshots WHERE project_id=? AND day>=? ORDER BY day').all(p.id,cutoff).map(r=>({projectId:p.id,...r})));
+ return send(200,{...hierarchy.visible(actor),projects,healthHistory,tasks:all('tasks').filter(r=>ids.has(r.projectId)),raid:all('raid').filter(r=>ids.has(r.projectId)),workstreams:all('workstreams').filter(r=>ids.has(r.projectId))});
  }
  if(url.pathname==='/api/demo'&&req.method==='DELETE'){auth.admin(actor);db.exec('BEGIN');try{const userRecords=types.filter(k=>k!=='projects').flatMap(all).filter(r=>!r.demo);const retainedTasks=new Set(userRecords.filter(r=>r.projectId).flatMap(r=>[r.parentId,...(r.dependsOn||[])]).filter(Boolean));let grew=true;while(grew){grew=false;for(const t of all('tasks'))if(retainedTasks.has(t.id))for(const id of [t.parentId,...(t.dependsOn||[])].filter(Boolean))if(!retainedTasks.has(id)){retainedTasks.add(id);grew=true;}}const retainedProjects=new Set([...userRecords,...all('tasks').filter(t=>retainedTasks.has(t.id))].map(r=>r.projectId));const retainedStreams=new Set(userRecords.map(r=>r.workstreamId));for(const kind of types)for(const r of all(kind))if(r.demo){if((kind==='tasks'&&retainedTasks.has(r.id))||(kind==='projects'&&retainedProjects.has(r.id))||(kind==='workstreams'&&retainedStreams.has(r.id))){put(kind,{...r,demo:false,revision:r.revision+1});}else db.prepare('DELETE FROM records WHERE id=?').run(r.id);}auth.audit(actor,'demo.removed');db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}return send(200,{ok:true});}
  const [, ,kind,id]=url.pathname.split('/');if(!types.includes(kind))return send(404,{error:'Not found'});
@@ -85,7 +90,7 @@ const server=http.createServer(async(req,res)=>{
  }
  return send(405,{error:'Method not allowed'});
  }
- const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','schedule-core.js','schedule.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
+ const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','overview.js','schedule-core.js','schedule.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
  res.writeHead(200,{'Content-Type':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'text/html','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'"});res.end(readFileSync(path.join(root,'public',file)));
  }catch(e){send(e.status||(e instanceof SyntaxError?400:500),{error:e.status?e.message:e instanceof SyntaxError?'Invalid JSON':'Request failed'});}
 });

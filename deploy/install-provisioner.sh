@@ -13,7 +13,7 @@ release=$(mktemp -d /opt/pathtoo-provisioner/releases/release-XXXXXXXX)
 chmod 0755 "$release"
 for dir in public deploy deploy/automation tests n8n n8n/code; do install -d -o root -g root -m 0755 "$release/$dir"; done
 install -m 0644 "$source_dir/"{server.js,auth.js,hierarchy.js,schedule.js,manage.js,package.json} "$release/"
-install -m 0644 "$source_dir/public/"{index.html,app.js,identity.js,portfolios.js,schedule-core.js,schedule.js,styles.css} "$release/public/"
+install -m 0644 "$source_dir/public/"{index.html,app.js,identity.js,portfolios.js,overview.js,schedule-core.js,schedule.js,styles.css} "$release/public/"
 install -m 0644 "$source_dir/deploy/"{install-pi.sh,pathtoo.service} "$release/deploy/"
 install -m 0644 "$source_dir/deploy/automation/"*.mjs "$release/deploy/automation/"
 install -m 0644 "$source_dir/tests/"*.test.js "$release/tests/"
