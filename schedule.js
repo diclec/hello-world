@@ -1,10 +1,10 @@
 import './public/schedule-core.js';
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
-export function createSchedule({ all, put, auth, db }) {
+export function createSchedule({ all, put, auth, db, assignments }) {
   function save(actor, input, old, record) {
     const existing = all('tasks');
     if (old && old.projectId !== record.projectId && (old.parentId || old.dependsOn?.length || existing.some(t => t.parentId === old.id || t.dependsOn?.includes(old.id)))) fail(400, 'Detach task hierarchy and dependencies before moving between projects');
-    const prepared = PmoSchedule.prepare(input, old, record);
+    const prepared = PmoSchedule.prepare(input, old, assignments.prepare(input,old,record));
     prepared.scheduleOrder = (old?.projectId === record.projectId ? old?.scheduleOrder : undefined) ?? Math.max(0, ...existing.filter(t => t.projectId === record.projectId).map((t, i) => t.scheduleOrder ?? i + 1)) + 1;
     if (old && old.scheduleOrder === undefined && old.projectId === record.projectId) prepared.scheduleOrder = existing.filter(t => t.projectId === record.projectId).findIndex(t => t.id === old.id) + 1;
     const source = existing.filter(t => t.projectId === record.projectId && t.id !== record.id);
