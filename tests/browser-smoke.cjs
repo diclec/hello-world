@@ -35,6 +35,23 @@ const freePort=()=>new Promise(resolve=>{const s=createServer();s.listen(0,'127.
 
  await page.getByRole('combobox',{name:'Schedule view',exact:true}).selectOption('gantt');await page.getByRole('img',{name:'Gantt chart showing task dates, completion and predecessor links',exact:true}).waitFor();await page.getByRole('combobox',{name:'Timeline scale',exact:true}).selectOption('day');
  await page.setViewportSize({width:390,height:844});if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Schedule overflows mobile');await page.setViewportSize({width:1440,height:1000});await page.getByRole('combobox',{name:'Schedule view',exact:true}).selectOption('split');
+
+ // Long schedules scroll inside the task panes, leaving project context and column/date headers fixed.
+ await page.evaluate(async()=>{for(let i=0;i<24;i++)await api('tasks','POST',{name:'Scroll task '+(i+1),projectId:selected,status:'To do',startDate:'2026-11-01',duration:1});await load();});
+ for(const layout of [{width:1440,height:1000,view:'split'},{width:1440,height:650,view:'table'},{width:390,height:844,view:'split'},{width:390,height:844,view:'gantt'}]){
+  await page.setViewportSize({width:layout.width,height:layout.height});await page.getByRole('combobox',{name:'Schedule view',exact:true}).selectOption(layout.view);
+  const snapshot=()=>page.evaluate(()=>{
+   const top=selector=>document.querySelector(selector)?.getBoundingClientRect().top;
+   return {title:top('main h1'),tabs:top('.tabs'),column:top('.schedule-table th'),dates:top('.gantt-date-header'),row:top('.schedule-table tbody tr'),taskScroll:document.querySelector('.schedule-table-wrap').scrollTop,ganttScroll:document.querySelector('.schedule-gantt-wrap').scrollTop,pageScroll:scrollY,overflow:document.documentElement.scrollWidth>innerWidth};
+  });
+  const before=await snapshot();const pane=layout.view==='gantt'?'.schedule-gantt-wrap':'.schedule-table-wrap';await page.locator(pane).evaluate(el=>el.scrollTop=520);await page.waitForTimeout(100);const after=await snapshot();
+  if(after.pageScroll!==0||after.overflow||Math.abs(before.title-after.title)>1||Math.abs(before.tabs-after.tabs)>1)throw Error('Project context moved during schedule scroll: '+JSON.stringify({layout,before,after}));
+  if(layout.view!=='gantt'&&(after.taskScroll<500||Math.abs(before.column-after.column)>1||before.row-after.row<500))throw Error('Task rows or locked column headers failed');
+  if(layout.view!=='table'&&(after.ganttScroll<500||Math.abs(before.dates-after.dates)>1))throw Error('Locked Gantt date header failed');
+  if(layout.view==='split'&&Math.abs(after.taskScroll-after.ganttScroll)>1)throw Error('Task and Gantt rows lost alignment');
+  await page.locator(pane).hover();await page.mouse.wheel(0,160);await page.waitForTimeout(100);if((await snapshot()).pageScroll!==0)throw Error('Schedule wheel scroll escaped into the page');
+ }
+ await page.setViewportSize({width:1440,height:1000});await page.getByRole('combobox',{name:'Schedule view',exact:true}).selectOption('split');await page.locator('.schedule-table-wrap').evaluate(el=>el.scrollTop=0);
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Export schedule',exact:true}).click();if((await download).suggestedFilename()!=='project-schedule.csv')throw Error('Schedule export missing');
  await page.reload();await page.getByRole('heading',{name:'Welcome, Jordan'}).waitFor();await page.getByText('Customer project',{exact:true}).click();await page.getByRole('button',{name:'Schedule',exact:true}).click();await page.locator('.schedule-table tbody tr').filter({hasText:'Build schedule'}).getByText('2026-11-12',{exact:true}).waitFor();await page.getByRole('button',{name:'Portfolio Home',exact:true}).click();
 
@@ -54,6 +71,6 @@ const freePort=()=>new Promise(resolve=>{const s=createServer();s.listen(0,'127.
  await viewer.reload();await viewer.getByRole('heading',{name:'Welcome back'}).waitFor();
  await page.setViewportSize({width:390,height:844});if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Mobile overflow');
  await page.locator('#profile').click();await page.getByRole('heading',{name:'My account'}).waitFor();await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('heading',{name:'Welcome back'}).waitFor();await page.getByLabel('Email address').fill('jordan@example.test');await page.getByLabel('Password',{exact:true}).fill('a-long-browser-passphrase');await page.getByRole('button',{name:'Sign in',exact:true}).click();await page.getByRole('heading',{name:'Welcome, Jordan'}).waitFor();await page.getByRole('button',{name:'Administration',exact:true}).click();await page.setViewportSize({width:1440,height:1000});
- if(errors.length)throw Error(errors.join('\n'));console.log('Passed: first admin setup, empty customer, project creation, schedule subtasks/WBS/dependencies/Gantt/rescheduling/cycle rejection/export, portfolio/program creation and switching, project reassignment, invitation, viewer acceptance, role controls, disabling revokes browser session, mobile layout, logout and password login. No browser JavaScript errors.');
+ if(errors.length)throw Error(errors.join('\n'));console.log('Passed: first admin setup, empty customer, project creation, schedule subtasks/WBS/dependencies/Gantt/rescheduling/cycle rejection/export/locked scrolling, portfolio/program creation and switching, project reassignment, invitation, viewer acceptance, role controls, disabling revokes browser session, mobile layout, logout and password login. No browser JavaScript errors.');
  } finally {if(browser)await browser.close();if(server&&server.exitCode===null){await new Promise(resolve=>{server.once('exit',resolve);server.kill();});}rmSync(dir,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exit(1)});
