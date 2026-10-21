@@ -83,11 +83,11 @@ globalThis.PmoSchedule = (() => {
         t.status = leaves.every(c => progress(c) === 100) ? 'Done' : leaves.some(c => c.status === 'Blocked') ? 'Blocked' : leaves.some(c => progress(c) > 0 || c.status === 'In progress') ? 'In progress' : 'To do';
         t.due = t.finishDate;
       } else {
-        let start = t.scheduleStart ?? t.startDate ?? '';
+        let start = t.dependsOn?.length ? '' : t.scheduleStart ?? t.startDate ?? '';
         for (const id of t.dependsOn || []) {
           const predecessor = byId.get(id); schedule(predecessor);
           if (!predecessor.finishDate) fail('Schedule predecessor "' + predecessor.name + '" before linking it');
-          const earliest = shift(predecessor.finishDate, predecessor.duration === 0 ? 0 : 1);
+          const earliest = predecessor.finishDate;
           if (!start || earliest > start) start = earliest;
         }
         if (start) {

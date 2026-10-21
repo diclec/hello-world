@@ -36,6 +36,7 @@ const host = process.env.HOST || '127.0.0.1';
 const auth = createAuth(db,{dataDir,host});
 const hierarchy=createHierarchy({all,put,auth});
 const schedule=createSchedule({all,put,auth,db});
+schedule.refreshExisting();
 const types=['projects','tasks','raid','workstreams'];
 const server=http.createServer(async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cache-Control','no-store');
