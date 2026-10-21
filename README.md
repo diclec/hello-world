@@ -27,6 +27,10 @@ The first administrator names the organization and creates their email/password 
 
 Non-administrators receive no automatic project visibility. API requests independently enforce roles and project scope. There is no global vendor login. Each installation has independent account/session state and cookie names. See [customer deployment and migration](deploy/CUSTOMERS.md) for detailed permissions, isolated installations, recovery, and limitations.
 
+## Visual theme
+
+Executive Navy Blue uses sidebar `#0F172A`, primary typography `#1E3A5F`, buttons/links `#2563EB`, accent `#38BDF8`, and page background `#F8FAFC`. Navigation, forms, authentication, charts, schedules and financials share the palette. Green, amber and red remain distinct for completion, warnings and risks.
+
 ## Application workflows
 
 - Create and edit portfolios and programs; assign projects to a portfolio and optionally a program.
