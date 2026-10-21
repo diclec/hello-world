@@ -86,3 +86,13 @@ test('health history uses observed daily values, stays within project access, an
  const restored=await req('projects/'+project.id,'PATCH',{revision:project.revision,forecast:100});assert.equal(restored.status,200);project=restored.data;
  const refreshed=(await req('workspace','GET',undefined,viewer)).data.healthHistory;assert.equal(refreshed.filter(r=>r.day===new Date().toISOString().slice(0,10)).length,1);assert.equal(refreshed.find(r=>r.day===new Date().toISOString().slice(0,10)).health,'Unknown');
 });
+
+test('actuals and commitments validate, enforce project permissions, remain optional and persist',async()=>{
+ let r=await req('projects/'+project.id,'PATCH',{revision:project.revision,actuals:'35.50',committedCosts:20});assert.equal(r.status,200);project=r.data;assert.equal(project.actuals,35.5);assert.equal(project.committedCosts,20);
+ for(const data of [{actuals:-1},{actuals:{}},{actuals:[]},{actuals:true},{actuals:' '},{actuals:'Infinity'},{committedCosts:-2},{committedCosts:[]},{committedCosts:false}])assert.equal((await req('projects/'+project.id,'PATCH',{revision:project.revision,...data})).status,400);
+ assert.equal((await req('projects/'+project.id,'PATCH',{revision:project.revision,actuals:0},contributor)).status,403);
+ assert.equal((await req('projects/'+project.id,'PATCH',{revision:project.revision,committedCosts:0},viewer)).status,403);
+ assert.equal((await req('projects/'+hiddenProject.id,'GET',undefined,viewer)).status,404);
+ await stop();await start();r=await req('projects/'+project.id);assert.equal(r.data.actuals,35.5);assert.equal(r.data.committedCosts,20);assert.equal(r.data.revision,project.revision);
+ r=await req('projects/'+project.id,'PATCH',{revision:project.revision,actuals:'',committedCosts:null});assert.equal(r.status,200);project=r.data;assert.equal(Object.hasOwn(project,'actuals'),false);assert.equal(Object.hasOwn(project,'committedCosts'),false);
+});

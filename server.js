@@ -77,6 +77,7 @@ const server=http.createServer(async(req,res)=>{
  r.category=r.category||'Infrastructure';r.owner=r.owner||actor.name;
  if(!['Draft','Pending Authorization','Authorized','Active','Closing','Closed','On Hold','Canceled'].includes(r.status))return send(400,{error:'Invalid project status'});
  if(['Closed','Canceled'].includes(r.status))return send(400,{error:'Controlled closure and cancellation are not available in this increment'});
+ for(const key of ['actuals','committedCosts'])if(Object.hasOwn(r,key)){if(r[key]===''||r[key]===null)delete r[key];else if(!['number','string'].includes(typeof r[key])||!String(r[key]).trim()||!Number.isFinite(Number(r[key]))||Number(r[key])<0)return send(400,{error:'Actuals and committed costs must be nonnegative numbers, or blank when unrecorded'});else r[key]=Number(r[key]);}
  for(const key of ['budget','forecast'])if(!Number.isFinite(Number(r[key]))||Number(r[key])<0)return send(400,{error:'Costs must be nonnegative numbers'});else r[key]=Number(r[key]);
  if(!['USD','EUR','GBP','CAD','AUD'].includes(r.currency||'USD'))return send(400,{error:'Unsupported currency'});r.currency=r.currency||'USD'; r.progress=Number(r.progress)||0;r.slip=Number(r.slip)||0;
  }
@@ -90,7 +91,7 @@ const server=http.createServer(async(req,res)=>{
  }
  return send(405,{error:'Method not allowed'});
  }
- const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','overview.js','schedule-core.js','schedule.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
+ const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','overview.js','financials.js','schedule-core.js','schedule.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
  res.writeHead(200,{'Content-Type':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'text/html','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'"});res.end(readFileSync(path.join(root,'public',file)));
  }catch(e){send(e.status||(e instanceof SyntaxError?400:500),{error:e.status?e.message:e instanceof SyntaxError?'Invalid JSON':'Request failed'});}
 });
