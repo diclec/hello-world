@@ -66,3 +66,15 @@ function bindOverview(){
   document.querySelectorAll('[data-overview-expand]').forEach(button=>button.onclick=()=>{const id=button.dataset.overviewExpand,open=!overviewExpanded.has(id);open?overviewExpanded.add(id):overviewExpanded.delete(id);button.setAttribute('aria-expanded',String(open));button.querySelector('.expand-chevron').textContent=open?'▾':'▸';document.getElementById('overview-'+id).hidden=!open;});
   document.querySelectorAll('[data-overview-program]').forEach(button=>button.onclick=()=>{const id=button.dataset.overviewProgram,open=!overviewPrograms.has(id);open?overviewPrograms.add(id):overviewPrograms.delete(id);button.setAttribute('aria-expanded',String(open));button.querySelector('.expand-chevron').textContent=open?'▾':'▸';document.querySelectorAll('[data-overview-program-parent="'+id+'"]').forEach(row=>row.hidden=!open);});
 }
+function directoryLedger(kind){
+  const name=kind==='portfolios'?'Portfolio':kind==='programs'?'Program':'Project',headers=overviewTableHeaders.map((h,i)=>i===0?name+' Name':h);
+  let rows='';
+  if(kind==='portfolios'){
+    const portfolios=[...state.portfolios];if(state.projects.some(p=>!p.portfolioId))portfolios.push({id:'unassigned',name:'Unassigned projects',owner:'—'});
+    rows=portfolios.map(overviewPortfolioLedger).join('');
+  }else if(kind==='programs'){
+    rows=state.programs.map(program=>{const projects=state.projects.filter(p=>p.programId===program.id),expanded=overviewPrograms.has(program.id);return `<tbody>${overviewLedgerRow('program',program,projects,0,expanded)}${projects.map(p=>overviewLedgerRow('project',p,[p],1,false,!expanded,program.id)).join('')}</tbody>`;}).join('');
+  }else rows=`<tbody>${filtered().map(p=>overviewLedgerRow('project',p,[p],0)).join('')}</tbody>`;
+  if(!rows||kind==='projects'&&!filtered().length)rows=`<tbody><tr><td colspan="9" class="overview-ledger-empty">No ${kind} to display.</td></tr></tbody>`;
+  return `<section class="panel overview-ledger-panel" aria-label="${name} directory"><div class="overview-ledger-scroll" tabindex="0" role="region" aria-label="${name} table"><table class="overview-ledger"><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead>${rows}</table></div></section>`;
+}
