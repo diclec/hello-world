@@ -31,14 +31,27 @@ Non-administrators receive no automatic project visibility. API requests indepen
 
 - Create and edit portfolios and programs; assign projects to a portfolio and optionally a program.
 - Portfolio/program selectors scope dashboards, project search, work, reports and CSV exports; health/category filters remain available.
+- Per-project Schedule with automatic WBS numbering, nested subtasks, date/duration/progress fields, finish-to-start dependencies, milestones, summary rollups, automatic successor rescheduling, Gantt chart and schedule CSV exports.
 - Projects, workstreams, task list/board, task completion, all six RAID types, financial summaries, filtered CSV exports.
 - SQLite persistence with optimistic concurrency and authored audit events.
 - Named users, salted scrypt password hashes, expiring HttpOnly sessions, CSRF protection and origin checks, single-use invitation/reset links, account/IP login throttles, immediate session invalidation on access changes, and last-admin protection.
 - Responsive layout with keyboard focus, labeled forms and dialogs.
 
-Task-count completion uses completed project tasks divided by all project tasks; no tasks displays a dash in the directory. Health evaluates critical issues, milestone slippage, cost exposure, overdue high-risk responses, and reporting age; missing required information is Unknown unless a known exception takes precedence. Currency totals are grouped in Reports; the home budget card totals USD only. Task owner text is descriptive and does not itself grant account access.
+Task-count completion uses completed project tasks divided by all project tasks; no tasks displays a dash in the directory. Health evaluates critical issues, milestone slippage, cost exposure, overdue high-risk responses, and reporting age; missing required information is Unknown unless a known exception takes precedence. Currency totals are grouped in Reports and portfolio/program cards. Task owner text is descriptive and does not itself grant account access.
 
 Existing projects remain **Unassigned** until edited to select a portfolio. Programs belong to one portfolio; a project can belong directly to a portfolio or to one of its programs. Move a program's projects out before changing its parent portfolio. Administrators manage all portfolios/programs; project managers create and edit their own. Other users see the ancestors of their assigned projects. Seeing a portfolio or program never grants access to its other projects. Fresh customer installations still start without portfolios, programs or sample data.
+
+## Project schedules
+
+Open a project and select **Schedule**. Use **Add task** or a row’s **＋ Subtask** action. Click a task description to edit or reparent it. Schedule and Work plan share the same task records. The table includes WBS ID, Task Description, Start Date, Finish Date, Duration, Percent Complete, and Depends On. WBS is generated from creation order within each parent and stays stable when dates or progress change; adding, removing or reparenting tasks can renumber siblings.
+
+Durations use whole **calendar days**, with both start and finish included; zero days creates a milestone. Changing start or duration calculates finish; changing finish in the editor calculates duration. A task can remain unscheduled. A successor starts no earlier than the day after its latest predecessor finishes (or the same day for a zero-day milestone). Its requested Start Date is an additional earliest-start constraint. Moving predecessors recalculates successor dates in either direction without overriding that constraint. Multiple predecessors are supported. Links must stay within the project and cannot be circular. Link leaf tasks or milestones, rather than summary tasks.
+
+Summary tasks derive dates from dated descendants and completion from all leaf descendants, weighted by duration (unscheduled tasks and milestones use weight one). Their dates, status and completion are read-only. Finish dates synchronize to task due dates, while existing unscheduled due dates remain available. Work-plan completion buttons and schedule percentages stay synchronized. Recalculated records receive new revisions and audit entries; stale edits return a refresh message.
+
+Choose **Table & Gantt**, **Task table**, or **Gantt chart**, and use Days/Weeks/Months for the timeline scale. Horizontal scrolling exposes all table columns and dates; both panes share row alignment in desktop split view. Bars show completed portions, summary spans, milestone diamonds and predecessor arrows. Export schedule produces CSV. Assigned contributors can edit tasks and their schedules; viewers can read and export. Deleting a task requires confirmation and is blocked until its subtasks and successor links are removed or moved. The schedule supports up to 1500 tasks per project and 30 nesting levels.
+
+This scheduling increment uses finish-to-start links and calendar days. Working-day/holiday calendars, other link types and lag, resource leveling, critical-path analysis, baselines, drag-to-reschedule, and Microsoft Project file import/export are not included. See [customer upgrades](deploy/CUSTOMERS.md) to install it on an existing Pi without resetting data.
 
 ## Validate
 
@@ -46,9 +59,9 @@ Existing projects remain **Unassigned** until edited to select a portfolio. Prog
 npm test
 ```
 
-The tests launch isolated servers on free local ports and temporary databases. They check setup, legacy migration, persistence across restarts, invitations, sessions, CSRF, permissions, account disable/reset, last-admin protection, separate customer databases/cookies, hierarchy validation and visibility, project moves, audit records, and throttling. They never use the running customer's data directory.
+The tests launch isolated servers on free local ports and temporary databases. They check setup, legacy migration, persistence across restarts, invitations, sessions, CSRF, permissions, account disable/reset, last-admin protection, separate customer databases/cookies, hierarchy validation and visibility, project moves, schedule date calculations, dependency cycles and rollups, audit records, and throttling. They never use the running customer's data directory.
 
-An optional browser workflow test is included in `tests/browser-smoke.cjs`. It starts its own temporary customer server/database and checks setup, portfolio/program/project creation, scope switching, project moves, invitations, viewer controls, disabling, mobile overflow, logout and sign-in. Install Playwright separately in your development environment, then run `node tests/browser-smoke.cjs`. `PLAYWRIGHT_MODULE` may point to an external Playwright package; `CHROMIUM_PATH` may select an installed Chromium. No browser dependency is needed to run the portal or API suite.
+An optional browser workflow test is included in `tests/browser-smoke.cjs`. It starts its own temporary customer server/database and checks setup, portfolio/program/project creation, scope switching, project moves, schedule editing/rescheduling/Gantt/export, invitations, viewer controls, disabling, mobile overflow, logout and sign-in. Install Playwright separately in your development environment, then run `node tests/browser-smoke.cjs`. `PLAYWRIGHT_MODULE` may point to an external Playwright package; `CHROMIUM_PATH` may select an installed Chromium. No browser dependency is needed to run the portal or API suite.
 
 ## Raspberry Pi deployment and upgrades
 
@@ -56,7 +69,7 @@ Use [customer installation and migration instructions](deploy/CUSTOMERS.md). The
 
 ## Scope
 
-This release adds customer-owned accounts to the foundation portal. It does not implement a shared SaaS database, automated billing, SSO/MFA, verified email delivery, or a vendor-wide customer control plane. Charters, approval gates, baselines, change control, dependency scheduling, immutable report snapshots, imports, and controlled closure remain later increments. Audit events are retained in the local database; they are not an external tamper-proof audit system.
+This release adds customer-owned accounts to the foundation portal. It does not implement a shared SaaS database, automated billing, SSO/MFA, verified email delivery, or a vendor-wide customer control plane. Charters, approval gates, baselines, change control, advanced scheduling, immutable report snapshots, imports, and controlled closure remain later increments. Audit events are retained in the local database; they are not an external tamper-proof audit system.
 
 Validate systemd startup, Tailscale access policies, reboot persistence, recovery, accessibility and expected workload on target infrastructure before production rollout. Pre-upgrade backups are created, but an off-device backup schedule and demonstrated restore are still operational requirements. External font loading is optional; local font fallbacks are provided.
 

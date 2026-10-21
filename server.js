@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createAuth, readJSON } from './auth.js';
 import { createHierarchy } from './hierarchy.js';
+import { createSchedule } from './schedule.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(root,'.data'); mkdirSync(dataDir,{recursive:true,mode:0o700});
 const db = new DatabaseSync(path.join(dataDir,'pmo.sqlite')); db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, data TEXT NOT NULL);');
@@ -34,6 +35,7 @@ function health(p){const issues=all('raid').some(r=>r.projectId===p.id&&r.type==
 const host = process.env.HOST || '127.0.0.1';
 const auth = createAuth(db,{dataDir,host});
 const hierarchy=createHierarchy({all,put,auth});
+const schedule=createSchedule({all,put,auth,db});
 const types=['projects','tasks','raid','workstreams'];
 const server=http.createServer(async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cache-Control','no-store');
@@ -49,10 +51,11 @@ const server=http.createServer(async(req,res)=>{
  const projects=all('projects').filter(p=>auth.canRead(actor,p.id));const ids=new Set(projects.map(p=>p.id));
  return send(200,{...hierarchy.visible(actor),projects:projects.map(p=>({...p,health:health(p)})),tasks:all('tasks').filter(r=>ids.has(r.projectId)),raid:all('raid').filter(r=>ids.has(r.projectId)),workstreams:all('workstreams').filter(r=>ids.has(r.projectId))});
  }
- if(url.pathname==='/api/demo'&&req.method==='DELETE'){auth.admin(actor);db.exec('BEGIN');try{const userRecords=types.filter(k=>k!=='projects').flatMap(all).filter(r=>!r.demo);const retainedProjects=new Set(userRecords.map(r=>r.projectId));const retainedStreams=new Set(userRecords.map(r=>r.workstreamId));for(const kind of types)for(const r of all(kind))if(r.demo){if((kind==='projects'&&retainedProjects.has(r.id))||(kind==='workstreams'&&retainedStreams.has(r.id))){put(kind,{...r,demo:false,revision:r.revision+1});}else db.prepare('DELETE FROM records WHERE id=?').run(r.id);}auth.audit(actor,'demo.removed');db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}return send(200,{ok:true});}
+ if(url.pathname==='/api/demo'&&req.method==='DELETE'){auth.admin(actor);db.exec('BEGIN');try{const userRecords=types.filter(k=>k!=='projects').flatMap(all).filter(r=>!r.demo);const retainedTasks=new Set(userRecords.filter(r=>r.projectId).flatMap(r=>[r.parentId,...(r.dependsOn||[])]).filter(Boolean));let grew=true;while(grew){grew=false;for(const t of all('tasks'))if(retainedTasks.has(t.id))for(const id of [t.parentId,...(t.dependsOn||[])].filter(Boolean))if(!retainedTasks.has(id)){retainedTasks.add(id);grew=true;}}const retainedProjects=new Set([...userRecords,...all('tasks').filter(t=>retainedTasks.has(t.id))].map(r=>r.projectId));const retainedStreams=new Set(userRecords.map(r=>r.workstreamId));for(const kind of types)for(const r of all(kind))if(r.demo){if((kind==='tasks'&&retainedTasks.has(r.id))||(kind==='projects'&&retainedProjects.has(r.id))||(kind==='workstreams'&&retainedStreams.has(r.id))){put(kind,{...r,demo:false,revision:r.revision+1});}else db.prepare('DELETE FROM records WHERE id=?').run(r.id);}auth.audit(actor,'demo.removed');db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}return send(200,{ok:true});}
  const [, ,kind,id]=url.pathname.split('/');if(!types.includes(kind))return send(404,{error:'Not found'});
  if(req.method==='GET'&&id){const record=all(kind).find(r=>r.id===id);if(!record||!auth.canRead(actor,kind==='projects'?id:record.projectId))return send(404,{error:'Record not found'});return send(200,kind==='projects'?{...record,health:health(record)}:record);}
  const input=await readJSON(req);
+ if(kind==='tasks'&&id&&req.method==='DELETE'){schedule.remove(actor,id,input);return send(200,{ok:true});}
  if(req.method==='POST'||req.method==='PATCH'){
  const old=id&&get(id);if(id&&(!old||!all(kind).some(r=>r.id===id)))return send(404,{error:'Record not found'});
  auth.authorizeWrite(actor,kind,old,input);
@@ -76,11 +79,12 @@ const server=http.createServer(async(req,res)=>{
  if(kind==='raid'&&(!['Risk','Assumption','Issue','Dependency','Decision','Action'].includes(r.type)||!['Open','In progress','Resolved'].includes(r.status)))return send(400,{error:'Invalid RAID type or status'});
  if(kind==='raid'){if(!['Low','Medium','High','Critical'].includes(r.severity))return send(400,{error:'Invalid severity'});if(r.type==='Risk')for(const key of ['probability','impact']){r[key]=Number(r[key]||3);if(!Number.isInteger(r[key])||r[key]<1||r[key]>5)return send(400,{error:'Risk scores must be integers from 1 to 5'});}}
  if(r.due&&!/^\d{4}-\d{2}-\d{2}$/.test(r.due))return send(400,{error:'Use a valid due date'});
+ if(kind==='tasks')return send(old?200:201,schedule.save(actor,input,old,r));
  auth.transaction(()=>{put(kind,r);if(kind==='projects'&&!old)auth.grantCreator(actor,r.id);auth.audit(actor,kind+(old?'.updated':'.created'),r.id,{projectId:kind==='projects'?r.id:r.projectId,revision:r.revision});});return send(old?200:201,r);
  }
  return send(405,{error:'Method not allowed'});
  }
- const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
+ const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','schedule-core.js','schedule.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
  res.writeHead(200,{'Content-Type':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'text/html','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'"});res.end(readFileSync(path.join(root,'public',file)));
  }catch(e){send(e.status||(e instanceof SyntaxError?400:500),{error:e.status?e.message:e instanceof SyntaxError?'Invalid JSON':'Request failed'});}
 });

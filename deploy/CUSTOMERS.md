@@ -23,6 +23,10 @@ The portfolio and program selectors scope dashboards, projects, work, reports an
 
 For an existing account-enabled installation, follow upgrade steps 1–2 below and sign in normally; first-administrator setup is not repeated. Upgrade each named customer separately using its existing slug, origin and port. If using the n8n worker, also update its source bundle by rerunning `sudo bash deploy/install-provisioner.sh` from the updated checkout, then `sudo systemctl start pathtoo-worker` with the existing worker configuration.
 
+## Project schedules
+
+Every project now has a **Schedule** tab, using the same tasks as Work plan. Existing tasks are preserved and remain unscheduled until dates or predecessors are added. New customers still start with no task or schedule records. The feature is included in both the Pi installer and n8n provisioner source bundle; no separate service or database migration is required. See [schedule rules and fields](../README.md#project-schedules).
+
 ## Upgrade your existing Raspberry Pi installation
 
 Your current projects are preserved. The old `PMO_ACCESS_TOKEN` stops being a login credential and becomes a **one-time first-administrator setup code**. Once setup completes, even that code cannot unlock the workspace or create another administrator. Existing anonymous/shared-token browser sessions must sign in using accounts.

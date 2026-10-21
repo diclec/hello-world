@@ -88,7 +88,7 @@ function bindIdentity() {
   };
   // Convenience in the interface; all permissions are independently checked by the server.
   const manager = ['admin','manager'].includes(identity.role), write = identity.role !== 'viewer';
-  document.querySelectorAll('[data-create],[data-edit-project],[data-edit-workstream],[data-toggle-task],[data-edit-task],[data-record]').forEach(el => {
+  document.querySelectorAll('[data-schedule-add],[data-schedule-edit],[data-create],[data-edit-project],[data-edit-workstream],[data-toggle-task],[data-edit-task],[data-record]').forEach(el => {
     const kind = el.dataset.create;
     if ((!write) || (!manager && (['portfolios','programs','projects','workstreams'].includes(kind) || el.hasAttribute('data-edit-project') || el.hasAttribute('data-edit-workstream')))) { el.disabled = true; el.title = 'Your role does not permit this change'; }
   });

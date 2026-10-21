@@ -59,8 +59,8 @@ elif [[ -n $public_origin ]] && ! grep -q '^PUBLIC_ORIGIN=' "$env_file"; then
  printf '\nPUBLIC_ORIGIN=%s\n' "$public_origin" >> "$env_file"
 fi
 chown root:root "$env_file"; chmod 0600 "$env_file"
-install -m 0644 "$source_dir/server.js" "$source_dir/auth.js" "$source_dir/hierarchy.js" "$source_dir/manage.js" "$source_dir/package.json" "$app_dir/"
-install -m 0644 "$source_dir/public/index.html" "$source_dir/public/app.js" "$source_dir/public/identity.js" "$source_dir/public/portfolios.js" "$source_dir/public/styles.css" "$app_dir/public/"
+install -m 0644 "$source_dir/server.js" "$source_dir/auth.js" "$source_dir/hierarchy.js" "$source_dir/schedule.js" "$source_dir/manage.js" "$source_dir/package.json" "$app_dir/"
+install -m 0644 "$source_dir/public/index.html" "$source_dir/public/app.js" "$source_dir/public/identity.js" "$source_dir/public/portfolios.js" "$source_dir/public/schedule-core.js" "$source_dir/public/schedule.js" "$source_dir/public/styles.css" "$app_dir/public/"
 sed "s/@SERVICE@/$service_name/g" "$source_dir/deploy/pathtoo.service" > "/etc/systemd/system/$service_name.service"
 chmod 0644 "/etc/systemd/system/$service_name.service"
 systemctl daemon-reload
