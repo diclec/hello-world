@@ -65,7 +65,7 @@ Change orders capture a title, requested change/reason, review status (Draft, Su
 
 Opening a project shows its latest entered status (title, timestamp and full update), or an empty state when no status has been entered. The Portfolio and Program filters and the former Project overview/Project work panels are omitted from this landing page.
 
-Schedule, RAID & Decisions, Workstreams, Financials, Change Orders and Status Updates each have a separate page address under `#/projects/<project-id>/<section>`, opening in the same browser tab. Links support refresh, bookmarks and browser Back/Forward; each section includes **Back to project**. The landing page is `#/projects/<project-id>`. Section pages preserve project context and existing permissions; schedule scrolling still keeps the project heading, section navigation and schedule column headers fixed. Links resolve only against projects accessible to the signed-in account.
+Schedule, RAID & Decisions, Workstreams, Financials, Change Orders and Status Updates each have a separate page address under `#/projects/<project-id>/<section>`, opening in the same browser tab. Links support refresh, bookmarks and browser Back/Forward; each section includes **Back to project**. The landing page is `#/projects/<project-id>`. Every section opens at the top with the project header and navigation collapsed into **Project details & navigation**, with **← Project** available to return. Section pages preserve project context and existing permissions; schedule scrolling still keeps the project heading, section navigation and schedule column headers fixed. Links resolve only against projects accessible to the signed-in account.
 
 ## My Work
 
