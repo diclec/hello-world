@@ -1,4 +1,5 @@
 import { test,before,after } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -20,7 +21,7 @@ test('new customers have no change orders or status updates',async()=>{
 });
 test('project updates persist with server timestamps, revisions and project-scoped visibility',async()=>{
  for(const kind of ['changeOrders','statusUpdates']){
-  const input={name:'Delivery update',description:'Review completed',projectId:project.id,...(kind==='changeOrders'?{status:'Submitted',budgetImpact:-250,scheduleImpact:-2}:{})};
+  const input={name:'Delivery update',reportDate:'2026-10-22',description:'Review completed',projectId:project.id,...(kind==='changeOrders'?{status:'Submitted',budgetImpact:-250,scheduleImpact:-2}:{})};
   const r=await req(kind,'POST',input,chris);assert.equal(r.status,201,JSON.stringify(r.data));assert.equal(r.data.authorId,chris.data.user.id);assert.ok(r.data.createdAt);assert.equal(r.data.revision,1);
   assert.equal((await req(kind+'/'+r.data.id,'GET',undefined,taylor)).status,200);
   assert.equal((await req(kind+'/'+r.data.id,'GET',undefined,outsider)).status,404);
@@ -44,4 +45,17 @@ test('viewers cannot add or edit project records',async()=>{
   assert.equal((await req(kind,'POST',{name:'Denied',description:'Details',projectId:project.id},viewer)).status,403);
   const record=(await req('workspace')).data[kind][0];assert.equal((await req(kind+'/'+record.id,'PATCH',{revision:record.revision,description:'Denied'},viewer)).status,403);
  }
+});
+
+test('status reports require real dates and have generated labels without user-entered titles',async()=>{
+ const input={projectId:project.id,description:'Dated report'};
+ for(const reportDate of [undefined,'','2026-02-30','bad',42])assert.equal((await req('statusUpdates','POST',{...input,reportDate})).status,400);
+ const result=await req('statusUpdates','POST',{...input,reportDate:'2026-10-10'});assert.equal(result.status,201);assert.equal(result.data.reportDate,'2026-10-10');assert.equal(result.data.name,'Status report — 2026-10-10');
+ const update=await req('statusUpdates/'+result.data.id,'PATCH',{revision:result.data.revision,reportDate:'2026-10-20'});assert.equal(update.status,200);assert.equal(update.data.reportDate,'2026-10-20');assert.equal(update.data.createdAt,result.data.createdAt);
+});
+
+test('existing status reports retain their text and use submission dates when edited',async()=>{
+ const legacy={id:'legacy-status-report',projectId:project.id,name:'Original title',description:'Historical update',createdAt:'2026-09-20T14:30:00.000Z',revision:1};const database=new DatabaseSync(path.join(directory,'pmo.sqlite'));database.prepare('INSERT INTO records VALUES(?,?,?)').run(legacy.id,'statusUpdates',JSON.stringify(legacy));database.close();
+ const before=(await req('workspace')).data.statusUpdates.find(r=>r.id===legacy.id);assert.equal(before.description,'Historical update');assert.equal(before.reportDate,undefined);
+ const edited=await req('statusUpdates/'+legacy.id,'PATCH',{revision:1,description:'Historical update corrected'});assert.equal(edited.status,200);assert.equal(edited.data.reportDate,'2026-09-20');assert.equal(edited.data.createdAt,legacy.createdAt);
 });

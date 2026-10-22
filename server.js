@@ -77,6 +77,11 @@ const server=http.createServer(async(req,res)=>{
  if(kind==='workstreams'&&old&&input.projectId&&old.projectId!==input.projectId)return send(400,{error:'Workstreams cannot move between projects'});
  const r={...(old||{}),...input,id:old?.id||randomUUID(),revision:(old?.revision||0)+1,demo:old?.demo||false,createdAt:old?.createdAt||new Date().toISOString(),authorId:old?.authorId||actor.id,updatedBy:actor.id,updatedAt:new Date().toISOString()};
  for(const key of ['owner','category','description','response','currency','target','due','status','type','severity','workstreamId','projectId'])if(r[key]!==undefined&&(typeof r[key]!=='string'||r[key].length>10000))return send(400,{error:'Invalid '+key});
+ if(kind==='statusUpdates'){
+ if(input.reportDate===undefined&&old)r.reportDate=old.reportDate||old.createdAt?.slice(0,10);
+ if(!PmoSchedule.validDate(r.reportDate))return send(400,{error:'Enter a valid report date'});
+ r.name='Status report — '+r.reportDate;
+ }
  if(typeof r.name!=='string'||!r.name.trim())return send(400,{error:'A name is required'});r.name=r.name.trim().slice(0,240);
  if(kind!=='projects'&&!all('projects').some(p=>p.id===r.projectId))return send(400,{error:'Select a valid project'});
  const project=kind==='projects'?old:get(r.projectId);if(project?.status==='Closed'||(kind!=='projects'&&old&&get(old.projectId)?.status==='Closed'))return send(409,{error:'Closed projects are read-only'});
