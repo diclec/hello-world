@@ -53,18 +53,18 @@ function overviewTargetDate(projects){
   });
   return {date:dates.filter(Boolean).sort().at(-1)||'',missing:dates.filter(d=>!d).length};
 }
-function overviewTableCells(projects){
+function overviewTableCells(projects,includeCounts=true){
   const ids=new Set(projects.map(p=>p.id)),totals=overviewBudgetTotals(projects),raid=state.raid.filter(r=>ids.has(r.projectId)&&r.status!=='Resolved');
   const amounts=['budget','committedCosts','remainingBudget'].map(key=>`<td class="overview-ledger-number">${totals.map(t=>{
     const missing=key==='committedCosts'?t.missingCommitted:0,unknown=key==='remainingBudget'&&t.remainingBudget===null||missing===t.projects;
     return `<div class="overview-ledger-amount ${key==='remainingBudget'&&t.remainingBudget<0?'financial-overrun':''}"><span>${unknown?'—':esc(financialMoney(t[key],t.currency))}<small>${esc(t.currency)}</small></span>${unknown?`<small>${key==='remainingBudget'?'Commitments incomplete':'Not recorded'}</small>`:missing?`<small>${missing} unrecorded · subtotal</small>`:''}</div>`;
   }).join('')||'—'}</td>`).join('');
   const target=overviewTargetDate(projects);
-  return `<td class="overview-target-date">${target.date?esc(target.date):'Not set'}${target.date&&target.missing?`<small>${target.missing} project targets unrecorded</small>`:''}</td>`+amounts+`<td>${badge(overviewHealth(projects))}</td><td>${raid.filter(r=>r.type==='Risk').length}</td><td>${raid.filter(r=>r.type==='Issue').length}</td>`;
+  return `<td class="overview-target-date">${target.date?esc(target.date):'Not set'}${target.date&&target.missing?`<small>${target.missing} project targets unrecorded</small>`:''}</td>`+amounts+`<td>${badge(overviewHealth(projects))}</td>${includeCounts?`<td>${raid.filter(r=>r.type==='Risk').length}</td><td>${raid.filter(r=>r.type==='Issue').length}</td>`:''}`;
 }
-function overviewLedgerRow(kind,record,projects,depth,expanded=false,hidden=false,parentProgram=''){
+function overviewLedgerRow(kind,record,projects,depth,expanded=false,hidden=false,parentProgram='',projectDirectory=false){
   const portfolio=kind==='portfolio',program=kind==='program',attributes=portfolio?`data-overview-expand="${record.id}" aria-expanded="${expanded}" aria-controls="overview-${record.id}"`:program?`data-overview-program="${record.id}" aria-expanded="${expanded}" ${projects.length?`aria-controls="${projects.map(p=>'overview-project-'+p.id).join(' ')}"`:''}`:`data-project="${record.id}"`;
-  return `<tr class="overview-${kind}-row" ${kind==='project'?`id="overview-project-${record.id}"`:''} ${parentProgram?`data-overview-program-parent="${parentProgram}"`:''} ${hidden?'hidden':''}><th scope="row"><button class="overview-ledger-name" style="padding-left:${depth*18}px" ${attributes}><span class="expand-chevron" aria-hidden="true">${kind==='project'?'◇':expanded?'▾':'▸'}</span><span><span class="project-name-with-status"><strong>${esc(record.name)}</strong>${kind==='project'&&page==='Projects'&&!selected?statusAgeIcon(record.id):''}</span>${portfolio?'':`<small>${program?'Program':'Project'}</small>`}${kind==='project'&&page==='Projects'&&!selected&&latestProjectStatus(record.id)?`<span class="project-latest-status"><b>Latest status: ${esc(statusReportDate(latestProjectStatus(record.id)))}</b><span>${esc(latestProjectStatus(record.id).description)}</span></span>`:''}</span></button></th><td>${esc(record.owner||'Unassigned')}</td>${overviewTableCells(projects)}</tr>`;
+  return `<tr class="overview-${kind}-row" ${kind==='project'?`id="overview-project-${record.id}"`:''} ${parentProgram?`data-overview-program-parent="${parentProgram}"`:''} ${hidden?'hidden':''}><th scope="row"><button class="overview-ledger-name" style="padding-left:${depth*18}px" ${attributes}><span class="expand-chevron" aria-hidden="true">${kind==='project'?'◇':expanded?'▾':'▸'}</span><span><span class="project-name-with-status"><strong>${esc(record.name)}</strong>${kind==='project'&&page==='Projects'&&!selected?statusAgeIcon(record.id):''}</span>${portfolio?'':`<small>${program?'Program':'Project'}</small>`}${kind==='project'&&page==='Projects'&&!selected&&latestProjectStatus(record.id)?`<span class="project-latest-status"><b>Latest status: ${esc(statusReportDate(latestProjectStatus(record.id)))}</b><span>${esc(latestProjectStatus(record.id).description)}</span></span>`:''}</span></button></th>${projectDirectory?`<td>${esc(state.portfolios.find(p=>p.id===record.portfolioId)?.name||'Unassigned')}</td>`:''}<td>${esc(record.owner||'Unassigned')}</td>${overviewTableCells(projects,!projectDirectory)}</tr>`;
 }
 function overviewPortfolioLedger(portfolio){
   const projects=state.projects.filter(p=>portfolio.id==='unassigned'?!p.portfolioId:p.portfolioId===portfolio.id),programs=state.programs.filter(p=>p.portfolioId===portfolio.id),open=overviewExpanded.has(portfolio.id);
@@ -75,6 +75,7 @@ function dashboard(){
   return `<section class="home-overview-header"><section class="welcome-header overview-welcome" aria-label="Welcome">${heading('YOUR PORTFOLIO, AT A GLANCE',`Welcome, ${esc(identity.name.split(' ')[0])} <span class="greeting">☀</span>`,'Your portfolios, delivery performance, and priorities in one place.',creationActions())}</section><details id="overview-chart-details" ${overviewChartsExpanded?'open':''}><summary>Portfolio charts</summary><section class="overview-pie-heroes" aria-label="Portfolio summary">${overviewProjectPie()}${overviewPortfolioPie()}${overviewBudgetPie()}${overviewPortfolioBudgetPie()}</section></details></section><section class="panel overview-ledger-panel" aria-label="Portfolio list"><div class="overview-ledger-scroll" tabindex="0" role="region" aria-label="Expandable portfolio overview table"><table class="overview-ledger"><thead><tr>${overviewTableHeaders.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead>${portfolios.map(overviewPortfolioLedger).join('')||'<tbody><tr><td colspan="9" class="overview-ledger-empty">No portfolios yet. Create a portfolio to start organizing delivery.</td></tr></tbody>'}</table></div><p class="overview-ledger-note">Remaining Budget = approved budget − outstanding committed costs. Unrecorded commitments remain unknown. Risks and issues count unresolved RAID records. All figures follow your project access; currencies stay separate.</p></section>`;
 }
 function bindOverview(){
+  if($('#project-portfolio-filter'))$('#project-portfolio-filter').onchange=e=>{scopePortfolio=e.target.value;scopeProgram='';render();};
   const charts=$('#overview-chart-details');if(charts)charts.ontoggle=()=>{if(charts.isConnected)overviewChartsExpanded=charts.open;};
   if($('#overview-portfolio-budget-currency'))$('#overview-portfolio-budget-currency').onchange=e=>{overviewBudgetCurrency=e.target.value;render();};
   if($('#overview-budget-currency'))$('#overview-budget-currency').onchange=e=>{overviewBudgetCurrency=e.target.value;render();};
@@ -83,14 +84,14 @@ function bindOverview(){
   document.querySelectorAll('[data-overview-program]').forEach(button=>button.onclick=()=>{const id=button.dataset.overviewProgram,open=!overviewPrograms.has(id);open?overviewPrograms.add(id):overviewPrograms.delete(id);button.setAttribute('aria-expanded',String(open));button.querySelector('.expand-chevron').textContent=open?'▾':'▸';document.querySelectorAll('[data-overview-program-parent="'+id+'"]').forEach(row=>row.hidden=!open);});
 }
 function directoryLedger(kind){
-  const name=kind==='portfolios'?'Portfolio':kind==='programs'?'Program':'Project',headers=overviewTableHeaders.map((h,i)=>i===0?name+' Name':h);
+  const name=kind==='portfolios'?'Portfolio':kind==='programs'?'Program':'Project',headers=kind==='projects'?['Project Name','Portfolio Name',...overviewTableHeaders.slice(1,-2)]:overviewTableHeaders.map((h,i)=>i===0?name+' Name':h);
   let rows='';
   if(kind==='portfolios'){
     const portfolios=[...state.portfolios];if(state.projects.some(p=>!p.portfolioId))portfolios.push({id:'unassigned',name:'Unassigned projects',owner:'—'});
     rows=portfolios.map(overviewPortfolioLedger).join('');
   }else if(kind==='programs'){
     rows=state.programs.map(program=>{const projects=state.projects.filter(p=>p.programId===program.id),expanded=overviewPrograms.has(program.id);return `<tbody>${overviewLedgerRow('program',program,projects,0,expanded)}${projects.map(p=>overviewLedgerRow('project',p,[p],1,false,!expanded,program.id)).join('')}</tbody>`;}).join('');
-  }else rows=`<tbody>${filtered().map(p=>overviewLedgerRow('project',p,[p],0)).join('')}</tbody>`;
-  if(!rows||kind==='projects'&&!filtered().length)rows=`<tbody><tr><td colspan="9" class="overview-ledger-empty">No ${kind} to display.</td></tr></tbody>`;
-  return `<section class="panel overview-ledger-panel" aria-label="${name} directory"><div class="overview-ledger-scroll" tabindex="0" role="region" aria-label="${name} table"><table class="overview-ledger"><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead>${rows}</table></div></section>`;
+  }else rows=`<tbody>${filtered().map(p=>overviewLedgerRow('project',p,[p],0,false,false,'',true)).join('')}</tbody>`;
+  if(!rows||kind==='projects'&&!filtered().length)rows=`<tbody><tr><td colspan="${headers.length}" class="overview-ledger-empty">No ${kind} to display.</td></tr></tbody>`;
+  return `<section class="panel overview-ledger-panel" aria-label="${name} directory"><div class="overview-ledger-scroll" tabindex="0" role="region" aria-label="${name} table"><table class="overview-ledger ${kind==='projects'?'project-directory-ledger':''}"><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead>${rows}</table></div></section>`;
 }
