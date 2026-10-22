@@ -34,7 +34,7 @@ Executive Navy Blue uses sidebar `#0F172A`, primary typography `#1E3A5F`, button
 ## Application workflows
 
 - Create and edit portfolios and programs; assign projects to a portfolio and optionally a program.
-- Portfolio Home shows a global overview of accessible projects, three pie-chart summaries, and an expandable portfolio/program/project table. Portfolios, Programs and Projects use the same table-only directory format with pinned headers; first columns are Portfolio Name, Program Name and Project Name respectively.
+- Portfolio Home shows a global overview of accessible projects, four pie-chart summaries, and an expandable portfolio/program/project table. Portfolios, Programs and Projects use the same table-only directory format with pinned headers; first columns are Portfolio Name, Program Name and Project Name respectively.
 - Per-project Schedule with automatic WBS numbering, nested subtasks, date/duration/progress fields, finish-to-start dependencies, milestones, summary rollups, automatic successor rescheduling, Gantt chart and schedule CSV exports.
 - Projects, workstreams, task list/board, task completion, all six RAID types, financial summaries, filtered CSV exports.
 - SQLite persistence with optimistic concurrency and authored audit events.
@@ -47,7 +47,7 @@ Existing projects remain **Unassigned** until edited to select a portfolio. Prog
 
 ## Portfolio overview
 
-Portfolio Home has a fixed Welcome section and exactly three pie-chart summary boxes above a divider. The project chart partitions all accessible projects into Active (status Active), Closed (status Closed), and Other so the slices add to Total Projects. Total, Active and Closed counts still open the matching Projects directory view and clear earlier portfolio/program/search/health/category filters. Opening Projects from the sidebar resets any previous scope or status filter. Directory pages have no filter controls or creation sections; new records can be created from Portfolio Home.
+Portfolio Home has a fixed Welcome section and exactly four pie-chart summary boxes above a divider. The project chart partitions all accessible projects into Active (status Active), Closed (status Closed), and Other so the slices add to Total Projects. Total, Active and Closed counts still open the matching Projects directory view and clear earlier portfolio/program/search/health/category filters. Opening Projects from the sidebar resets any previous scope or status filter. Directory pages have no filter controls or creation sections; new records can be created from Portfolio Home.
 
 The Total Budget chart shows approved budget in its center and partitions it into outstanding committed costs and remaining budget. Use the Budget currency selector when multiple currencies are present; currencies are not added together. On this page, **Remaining Budget = approved budget − outstanding committed costs**, reflecting the requested commitment allocation view. Actual spending is shown separately on Financials Overview, where remaining budget means approved budget minus actuals. Zero is a recorded value; missing commitments remain unrecorded, with an unreconciled segment and unknown remaining balance. Overcommitments show a negative remaining balance without drawing a negative slice.
 
@@ -61,7 +61,7 @@ Above the Projects table, **+RAID Item**, **+Change Order** and **+Latest Status
 
 Change orders capture a title, requested change/reason, review status (Draft, Submitted, Approved or Rejected), budget impact in the project currency, and schedule impact in whole days. Negative impacts represent savings or fewer days. The project’s **Change Orders** tab retains these records. Approval is a recorded review state; it does not automatically alter the approved budget or task schedule. RAID uses the existing RAID register. Viewers can read records but cannot submit or edit them; project membership and closed-project restrictions are enforced by the server. Fresh customers still start with no records.
 
-Portfolio Home places **Projects per Portfolio** between Projects and Total Budget. Each portfolio has a coloured segment and count, with Unassigned projects included separately. Counts use all projects accessible to the signed-in account, and the legend scrolls for longer portfolio lists.
+Portfolio Home places **Projects per Portfolio** between Projects and Total Budget. Each portfolio has a coloured segment and count, with Unassigned projects included separately. **Budget by Portfolio** follows Total Budget and splits approved project budgets by portfolio in the selected currency. Both budget charts share the currency selection. Use **Portfolio charts** to collapse or expand all four charts, giving the table more room. Counts use all projects accessible to the signed-in account, and the legend scrolls for longer portfolio lists.
 
 ## Individual project pages
 
