@@ -105,3 +105,12 @@ test('user workstream assignments persist without granting access and clear when
  user=removed.data.user;const restored=await req('admin/users/'+user.id,'PATCH',{revision:user.revision,projectIds:[project.id],workstreamId:stream.id});assert.equal(restored.status,200);assert.equal(restored.data.user.workstreamId,stream.id);
  const cleared=await req('admin/users/'+user.id,'PATCH',{revision:restored.data.user.revision,workstreamId:''});assert.equal(cleared.status,200);assert.equal(cleared.data.user.workstreamId,'');
 });
+
+
+test('resources save workstreams and assignment dates without status or owner form fields',async()=>{
+ const stream=(await req('workstreams','POST',{name:'Resource stream',projectId:project.id})).data,otherStream=(await req('workstreams','POST',{name:'Other resource stream',projectId:privateProject.id})).data;
+ const input={projectId:project.id,workstreamId:stream.id,name:'Engineer',description:'Delivery and testing',assignmentStartDate:'2026-11-01',assignmentEndDate:'2026-12-01'};
+ const result=await req('resources','POST',input);assert.equal(result.status,201);assert.equal(result.data.workstreamId,stream.id);assert.equal(result.data.assignmentStartDate,input.assignmentStartDate);assert.equal(result.data.assignmentEndDate,input.assignmentEndDate);assert.equal(result.data.due,input.assignmentEndDate);assert.equal(result.data.status,'Planned');
+ for(const patch of [{assignmentEndDate:'2026-10-01'},{assignmentStartDate:'2026-02-30'},{assignmentEndDate:42},{workstreamId:otherStream.id}])assert.equal((await req('resources','POST',{...input,...patch})).status,400);
+ const edited=await req('resources/'+result.data.id,'PATCH',{revision:result.data.revision,assignmentEndDate:'',workstreamId:''});assert.equal(edited.status,200);assert.equal(edited.data.assignmentEndDate,'');assert.equal(edited.data.due,'');assert.equal(edited.data.workstreamId,'');
+});

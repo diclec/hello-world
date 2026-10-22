@@ -95,8 +95,14 @@ const server=http.createServer(async(req,res)=>{
  if(!['USD','EUR','GBP','CAD','AUD'].includes(r.currency||'USD'))return send(400,{error:'Unsupported currency'});r.currency=r.currency||'USD'; r.progress=Number(r.progress)||0;r.slip=Number(r.slip)||0;
  }
  if(['resources','transparencies','escalations'].includes(kind)){
+ if(kind==='resources'&&!r.status)r.status='Planned';
  const statuses={resources:['Planned','Active','Released'],transparencies:['Open','In progress','Closed'],escalations:['Open','In progress','Resolved']};
  if(!statuses[kind].includes(r.status))return send(400,{error:'Select a valid record status'});
+ }
+ if(kind==='resources'){
+ for(const key of ['assignmentStartDate','assignmentEndDate'])if(r[key]!==undefined&&(typeof r[key]!=='string'||r[key]&&!PmoSchedule.validDate(r[key])))return send(400,{error:'Enter valid assignment dates'});
+ const end=r.assignmentEndDate??r.due;if(r.assignmentStartDate&&end&&end<r.assignmentStartDate)return send(400,{error:'Assignment End Date must be on or after Assignment Start Date'});
+ if(input.assignmentEndDate!==undefined)r.due=r.assignmentEndDate;
  }
  if(kind==='financialEntries'){
  if(!['Budget','Actual','Committed','Forecast'].includes(r.entryType))return send(400,{error:'Select a valid financial record type'});
@@ -105,7 +111,7 @@ const server=http.createServer(async(req,res)=>{
  r.amount=Number(r.amount);r.currency=project.currency||'USD';
  }
  if(kind==='tasks'&&!['To do','In progress','Done','Blocked'].includes(r.status))return send(400,{error:'Invalid task status'});
- if(['tasks','raid','changeOrders','financialEntries'].includes(kind)&&r.workstreamId&&!all('workstreams').some(w=>w.id===r.workstreamId&&w.projectId===r.projectId))return send(400,{error:'Workstream must belong to the project'});
+ if(['tasks','raid','changeOrders','financialEntries','resources'].includes(kind)&&r.workstreamId&&!all('workstreams').some(w=>w.id===r.workstreamId&&w.projectId===r.projectId))return send(400,{error:'Workstream must belong to the project'});
  if(kind==='raid'&&(!['Risk','Assumption','Issue','Dependency','Decision','Action'].includes(r.type)||!['Open','In progress','Resolved'].includes(r.status)))return send(400,{error:'Invalid RAID type or status'});
  if(kind==='raid'){if(!['Low','Medium','High','Critical'].includes(r.severity))return send(400,{error:'Invalid severity'});if(r.type==='Risk')for(const key of ['probability','impact']){r[key]=Number(r[key]||3);if(!Number.isInteger(r[key])||r[key]<1||r[key]>5)return send(400,{error:'Risk scores must be integers from 1 to 5'});}}
  if(['changeOrders','statusUpdates'].includes(kind)){
