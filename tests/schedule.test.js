@@ -116,3 +116,14 @@ test('restart refreshes stale summary bounds in projects without dependencies an
  await start();const restored=await task(root.id);assert.equal(restored.startDate,'2027-03-02');assert.equal(restored.finishDate,'2027-03-23');assert.equal(restored.duration,22);assert.equal(restored.revision,expected.revision+1);
  const snapshot=(await req('workspace')).data;await stop();await start();assert.deepEqual((await req('workspace')).data,snapshot);
 });
+
+
+test('major milestone flags persist, retain task durations and follow dependency dates',async()=>{
+ const predecessor=await create({name:'Major milestone predecessor',startDate:'2027-06-01',duration:3});
+ const marked=await create({name:'Major delivery',majorMilestone:true,duration:4,dependsOn:[predecessor.id]});assert.equal(marked.majorMilestone,true);assert.equal(marked.duration,4);assert.equal(marked.finishDate,'2027-06-06');
+ assert.equal((await patch(predecessor.id,{startDate:'2027-06-10'})).status,200);assert.equal((await task(marked.id)).finishDate,'2027-06-15');assert.equal((await task(marked.id)).majorMilestone,true);
+ const point=await create({name:'Major approval',majorMilestone:true,duration:0,startDate:'2027-07-01'});assert.equal(point.startDate,point.finishDate);
+ await stop();await start();assert.equal((await task(marked.id)).majorMilestone,true);
+ assert.equal((await patch(marked.id,{majorMilestone:false})).status,200);assert.equal((await task(marked.id)).majorMilestone,false);assert.equal((await task(marked.id)).duration,4);
+ for(const value of ['true',1,null,{}])assert.equal((await patch(point.id,{majorMilestone:value})).status,400);
+});

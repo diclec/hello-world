@@ -8,6 +8,7 @@ globalThis.PmoSchedule = (() => {
   const progress = task => task.percentComplete ?? (task.status === 'Done' ? 100 : 0);
   function prepare(input, old, record) {
     const t = { ...record };
+    if (input.majorMilestone !== undefined && typeof input.majorMilestone !== 'boolean') fail('Major milestone must be true or false');
     for (const key of ['parentId', 'startDate', 'finishDate']) if (input[key] !== undefined && typeof input[key] !== 'string') fail('Invalid ' + key);
     // The requested start remains separate from calculated dates so successors can move in either direction.
     delete t.wbs; delete t.depth; delete t.summary;
@@ -41,6 +42,7 @@ globalThis.PmoSchedule = (() => {
     const tasks = source.map((t, i) => ({ ...t, scheduleOrder: t.scheduleOrder ?? i + 1 })).sort((a, b) => a.scheduleOrder - b.scheduleOrder), byId = new Map(tasks.map(t => [t.id, t]));
     const children = new Map([['', []]]);
     for (const t of tasks) {
+      if (t.majorMilestone !== undefined && typeof t.majorMilestone !== 'boolean') fail('Invalid major milestone');
       if (t.parentId !== undefined && typeof t.parentId !== 'string') fail('Invalid parent task');
       if (t.parentId && (!byId.has(t.parentId) || t.parentId === t.id)) fail('Parent task must be another task in this project');
       if (t.dependsOn !== undefined && (!Array.isArray(t.dependsOn) || t.dependsOn.length > 100 || t.dependsOn.some(id => typeof id !== 'string') || new Set(t.dependsOn).size !== t.dependsOn.length)) fail('Select up to 100 distinct predecessors');
