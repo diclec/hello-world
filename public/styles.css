@@ -93,3 +93,5 @@
 .project-section-screen main>.project-section-links{position:sticky;top:0;z-index:6;background:var(--bg);margin-bottom:6px;flex-shrink:0;gap:22px}.project-section-screen main>.project-section-links a{padding:10px 0}
 
 .project-compact-name{font-size:18px;font-weight:700;color:var(--primary);line-height:1.4;padding:0 0 6px;flex-shrink:0;overflow-wrap:anywhere}
+
+.project-name-with-status{display:inline-flex;align-items:center;gap:7px}.status-age-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:19px;height:19px;border-radius:50%;font-size:13px;font-weight:800;line-height:1;vertical-align:middle;margin-left:6px;text-decoration:none}.project-name-with-status .status-age-icon{margin-left:0}.status-age-current{color:#15803D;background:#DCFCE7}.status-age-warning{color:#A16207;background:#FEF08A}.status-age-overdue{color:#DC2626;background:#FEE2E2}.status-age-missing{color:#64748B;background:#E2E8F0}
