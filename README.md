@@ -69,7 +69,7 @@ Status, Schedule, RAID & Decisions, Workstreams, Financials and Change Orders ea
 
 ## Workstreams and linked registers
 
-The Workstreams page shows the project’s workstream count beside **Project workstreams**. Create or edit a stream using **Workstream Name**. Every stream lists its linked Milestones, Risks, Issues, Dependencies, Actions, Change Requests and Financials, including empty groups. Milestones include tasks marked Major milestone and zero-day leaf tasks; change requests use the existing Change Orders register.
+The Workstreams page shows the project’s workstream count beside **Project workstreams**. Create or edit a stream using **Workstream Name**. A single table groups linked Milestones, Risks, Issues, Dependencies, Actions, Change Requests and Financials under each workstream. Columns are Register, Record, Status / Type, Date, Owner and Amount. Workstreams with no linked records remain visible. Milestones include tasks marked Major milestone and zero-day leaf tasks; change requests use the existing Change Orders register.
 
 Select an optional **Workstream** when adding or editing a schedule task, RAID item, change order or financial record. Each record links to one workstream in its own project; the server rejects cross-project links. Click a listed record to open its existing editor. Only records matching both the project and workstream are shown. Existing role and project-access restrictions apply, including read-only viewers.
 
