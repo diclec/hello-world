@@ -71,6 +71,10 @@ Opening any project goes directly to **Status**, the first item in the project t
 
 Status, Schedule, RAID & Decisions, Transparencies, Escalations, Workstreams, Financials and Resources each have a separate page address under `#/projects/<project-id>/<section>`, opening in the same browser tab. Links support refresh, bookmarks and browser Back/Forward; each section includes **Back to projects**. The default project page is `#/projects/<project-id>/status-updates`. Every section keeps the section toolbar visible at the top for direct navigation. The larger project header is collapsed into **Project details**, with **← Back to projects** available to return to the list. Section pages preserve project context and existing permissions; schedule scrolling still keeps the project heading, section navigation and schedule column headers fixed. Links resolve only against projects accessible to the signed-in account.
 
+## User workstream field
+
+Add customer user and Edit user access include an optional **Workstream** selector. Non-administrators can choose workstreams only from their assigned projects; administrators can choose any project’s workstream. Options include project names to distinguish identically named streams. The assignment is saved with the user and is available after invitation acceptance and restart. It does not grant project access or restrict existing role permissions. Removing project access clears an existing assignment when it is no longer eligible. Existing users default to no workstream; the additional mapping table is created automatically on upgrade.
+
 ## Resources, Transparencies and Escalations
 
 The project toolbar places Transparencies and Escalations immediately after RAID & Decisions and replaces the former Change Orders link with Resources. All three sections have project-scoped tables and create/edit forms, preserving the compact project header and visible toolbar.

@@ -91,3 +91,17 @@ test('project resource, transparency and escalation registers persist with acces
   const snapshot=(await req('workspace')).data[kind];await stop();await start();assert.deepEqual((await req('workspace')).data[kind],snapshot);
  }
 });
+
+
+test('user workstream assignments persist without granting access and clear when project access is removed',async()=>{
+ const stream=(await req('workstreams','POST',{name:'User stream',projectId:project.id})).data,foreign=(await req('workstreams','POST',{name:'Other user stream',projectId:privateProject.id})).data;
+ const input={name:'Workstream user',email:'workstream-user@example.test',role:'viewer',projectIds:[project.id],workstreamId:stream.id};
+ assert.equal((await req('admin/users','POST',{...input,workstreamId:foreign.id})).status,400);assert.equal((await req('admin/users')).data.users.some(u=>u.email===input.email),false);
+ assert.equal((await req('admin/users','POST',{...input,workstreamId:42})).status,400);
+ const created=await req('admin/users','POST',input);assert.equal(created.status,201);assert.equal(created.data.user.workstreamId,stream.id);assert.deepEqual(created.data.user.projectIds,[project.id]);
+ const accepted=await req('auth/accept','POST',{token:created.data.token,password},null);assert.equal(accepted.status,200);assert.equal((await req('auth/me','GET',undefined,accepted)).data.user.workstreamId,stream.id);
+ await stop();await start();let user=(await req('admin/users')).data.users.find(u=>u.id===created.data.user.id);assert.equal(user.workstreamId,stream.id);
+ const removed=await req('admin/users/'+user.id,'PATCH',{revision:user.revision,projectIds:[]});assert.equal(removed.status,200);assert.equal(removed.data.user.workstreamId,'');assert.deepEqual(removed.data.user.projectIds,[]);
+ user=removed.data.user;const restored=await req('admin/users/'+user.id,'PATCH',{revision:user.revision,projectIds:[project.id],workstreamId:stream.id});assert.equal(restored.status,200);assert.equal(restored.data.user.workstreamId,stream.id);
+ const cleared=await req('admin/users/'+user.id,'PATCH',{revision:restored.data.user.revision,workstreamId:''});assert.equal(cleared.status,200);assert.equal(cleared.data.user.workstreamId,'');
+});

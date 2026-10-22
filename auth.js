@@ -44,6 +44,7 @@ export function createAuth(db, { dataDir, host }) {
     CREATE TABLE IF NOT EXISTS customer (id INTEGER PRIMARY KEY CHECK(id=1), instance_id TEXT NOT NULL, name TEXT NOT NULL, setup_hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','manager','contributor','viewer')), status TEXT NOT NULL CHECK(status IN ('invited','active','disabled')), password_hash TEXT, revision INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS memberships (user_id TEXT REFERENCES users(id), project_id TEXT NOT NULL, PRIMARY KEY(user_id,project_id));
+    CREATE TABLE IF NOT EXISTS user_workstreams (user_id TEXT PRIMARY KEY REFERENCES users(id), workstream_id TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), csrf TEXT NOT NULL, created_at INTEGER NOT NULL, seen_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS invitations (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), purpose TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS audit_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor_id TEXT, action TEXT NOT NULL, object_id TEXT, details TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -73,7 +74,7 @@ export function createAuth(db, { dataDir, host }) {
     sql('INSERT INTO audit_events(actor_id,action,object_id,details,created_at) VALUES(?,?,?,?,?)', actor?.id || null, action, objectId, JSON.stringify(details), new Date().toISOString());
   }
   function transaction(fn) { db.exec('BEGIN IMMEDIATE'); try { const result = fn(); db.exec('COMMIT'); return result; } catch (e) { db.exec('ROLLBACK'); throw e; } }
-  const publicUser = u => ({ id: u.id, email: u.email, name: u.name, role: u.role, status: u.status, revision: u.revision, createdAt: u.created_at, hasPassword: !!u.password_hash, projectIds: many('SELECT project_id FROM memberships WHERE user_id=?', u.id).map(m => m.project_id) });
+  const publicUser = u => ({ id: u.id, email: u.email, name: u.name, role: u.role, status: u.status, revision: u.revision, createdAt: u.created_at, workstreamId: one('SELECT workstream_id FROM user_workstreams WHERE user_id=?',u.id)?.workstream_id||'', hasPassword: !!u.password_hash, projectIds: many('SELECT project_id FROM memberships WHERE user_id=?', u.id).map(m => m.project_id) });
   function context(req) {
     const raw = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith(cookieName + '='))?.slice(cookieName.length + 1);
     if (!raw || !/^[a-f0-9]{64}$/.test(raw)) return null;
@@ -119,6 +120,15 @@ export function createAuth(db, { dataDir, host }) {
     if (!Array.isArray(ids) || ids.length > 100 || ids.some(id => typeof id !== 'string' || !one("SELECT id FROM records WHERE kind='projects' AND id=?", id))) fail(400, 'Select valid projects');
     sql('DELETE FROM memberships WHERE user_id=?', userId);
     for (const id of new Set(ids)) sql('INSERT INTO memberships VALUES(?,?)', userId, id);
+  }
+  function assignWorkstream(userId,value,role){
+    const explicit=value!==undefined;
+    if(explicit&&typeof value!=='string')fail(400,'Select a valid workstream');
+    const id=explicit?value:one('SELECT workstream_id FROM user_workstreams WHERE user_id=?',userId)?.workstream_id||'';
+    if(id){const row=one("SELECT data FROM records WHERE kind='workstreams' AND id=?",id),stream=row&&JSON.parse(row.data);const eligible=stream&&one("SELECT id FROM records WHERE kind='projects' AND id=?",stream.projectId)&&(role==='admin'||one('SELECT user_id FROM memberships WHERE user_id=? AND project_id=?',userId,stream.projectId));
+      if(!eligible){if(explicit)fail(400,'Select a workstream in an assigned project');sql('DELETE FROM user_workstreams WHERE user_id=?',userId);return;}
+      sql('INSERT OR REPLACE INTO user_workstreams VALUES(?,?)',userId,id);
+    }else sql('DELETE FROM user_workstreams WHERE user_id=?',userId);
   }
   function grantCreator(actor, projectId) { if (actor.role !== 'admin') sql('INSERT OR IGNORE INTO memberships VALUES(?,?)', actor.id, projectId); }
   function throttle(req, identifier, limit = 10) {
@@ -184,7 +194,7 @@ export function createAuth(db, { dataDir, host }) {
     if (!route.startsWith('/api/auth/') && !route.startsWith('/api/admin/')) return false;
     if (!['GET', 'HEAD'].includes(req.method)) await readJSON(req);
     const actor = requireUser(req);
-    if (route === '/api/auth/me' && req.method === 'GET') { send(200, { user: { id:actor.id,email:actor.email,name:actor.name,role:actor.role,status:actor.status,revision:actor.revision,projectIds:actor.projectIds }, csrf: actor.csrf, organization: one('SELECT name,instance_id FROM customer WHERE id=1') }); return true; }
+    if (route === '/api/auth/me' && req.method === 'GET') { send(200, { user: { id:actor.id,email:actor.email,name:actor.name,role:actor.role,status:actor.status,revision:actor.revision,projectIds:actor.projectIds,workstreamId:actor.workstreamId }, csrf: actor.csrf, organization: one('SELECT name,instance_id FROM customer WHERE id=1') }); return true; }
     if (route === '/api/auth/logout' && req.method === 'POST') { sql('DELETE FROM sessions WHERE token_hash=?', actor.sessionHash); cookie(req, res, '', true); audit(actor, 'logout', actor.id); send(200, { ok: true }); return true; }
     if (route === '/api/auth/password' && req.method === 'POST') {
       const input = await readJSON(req); throttle(req, actor.email);
@@ -214,7 +224,7 @@ export function createAuth(db, { dataDir, host }) {
       const id = randomUUID();
       const link = transaction(() => {
         sql('INSERT INTO users VALUES(?,?,?,?,?,?,1,?)', id, identity.email, identity.name, input.role, 'invited', null, new Date().toISOString());
-        assignProjects(id, input.projectIds || []); audit(actor, 'user.invited', id, { role: input.role, projectIds: input.projectIds || [] }); return tokenFor(id, 'invite');
+        assignProjects(id, input.projectIds || []); assignWorkstream(id,input.workstreamId,input.role); audit(actor, 'user.invited', id, { role: input.role, projectIds: input.projectIds || [], workstreamId:input.workstreamId||'' }); return tokenFor(id, 'invite');
       });
       send(201, { user: publicUser(one('SELECT * FROM users WHERE id=?', id)), ...link }); return true;
     }
@@ -234,9 +244,10 @@ export function createAuth(db, { dataDir, host }) {
       transaction(() => {
         if (target.status === 'active' && target.role === 'admin' && (role !== 'admin' || status !== 'active') && one("SELECT COUNT(*) AS n FROM users WHERE role='admin' AND status='active'").n <= 1) fail(409, 'Keep at least one active administrator');
         if (input.projectIds) assignProjects(target.id, input.projectIds);
+        assignWorkstream(target.id,input.workstreamId,role);
         sql('UPDATE users SET name=?,role=?,status=?,revision=revision+1 WHERE id=?', name.trim(), role, status, target.id);
         sql('DELETE FROM sessions WHERE user_id=?', target.id); sql('DELETE FROM invitations WHERE user_id=?', target.id);
-        audit(actor, 'user.updated', target.id, { role, status, projectIds: input.projectIds || publicUser(target).projectIds });
+        audit(actor, 'user.updated', target.id, { role, status, projectIds: input.projectIds || publicUser(target).projectIds,workstreamId:publicUser(target).workstreamId });
       });
       send(200, { user: publicUser(one('SELECT * FROM users WHERE id=?', target.id)) }); return true;
     }
