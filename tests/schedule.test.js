@@ -94,3 +94,25 @@ test('upgrade restart recalculates existing linked dates and is idempotent',asyn
  const events=(await req('admin/audit')).data.events;assert.ok(events.some(e=>e.action==='schedule.recalculated'));
  const snapshot=(await req('workspace')).data;await stop();await start();assert.deepEqual((await req('workspace')).data,snapshot);
 });
+
+
+test('independent and nested subtasks control parent bounds rather than manually entered parent dates',async()=>{
+ const root=await create({projectId:other.id,name:'Automatic summary',startDate:'2028-01-01',duration:30});
+ const early=await create({projectId:other.id,parentId:root.id,name:'Early child',startDate:'2027-02-01',duration:3});
+ const nested=await create({projectId:other.id,parentId:root.id,name:'Nested child'});
+ const late=await create({projectId:other.id,parentId:nested.id,name:'Late milestone',startDate:'2027-02-20',duration:0});
+ let result=await task(root.id);assert.equal(result.startDate,'2027-02-01');assert.equal(result.finishDate,'2027-02-20');assert.equal(result.duration,20);
+ assert.equal((await patch(late.id,{startDate:'2027-02-10'})).status,200);assert.equal((await task(root.id)).finishDate,'2027-02-10');
+ assert.equal((await patch(early.id,{startDate:'2027-01-20'})).status,200);assert.equal((await task(root.id)).startDate,'2027-01-20');
+ assert.equal((await patch(early.id,{startDate:'',finishDate:''})).status,200);assert.equal((await task(root.id)).startDate,'2027-02-10');
+ assert.equal((await patch(late.id,{startDate:'',finishDate:''})).status,200);result=await task(root.id);assert.equal(result.startDate,'');assert.equal(result.finishDate,'');assert.equal(result.duration,0);
+});
+test('restart refreshes stale summary bounds in projects without dependencies and remains idempotent',async()=>{
+ const root=await create({projectId:other.id,name:'Saved summary'});
+ await create({projectId:other.id,parentId:root.id,name:'First dated child',startDate:'2027-03-02',duration:2});
+ await create({projectId:other.id,parentId:root.id,name:'Last dated child',startDate:'2027-03-20',duration:4});
+ const expected=await task(root.id);await stop();
+ const database=new DatabaseSync(path.join(dir,'pmo.sqlite'));database.prepare('UPDATE records SET data=? WHERE id=?').run(JSON.stringify({...expected,startDate:'2028-01-01',finishDate:'2028-01-30',due:'2028-01-30',duration:30}),root.id);database.close();
+ await start();const restored=await task(root.id);assert.equal(restored.startDate,'2027-03-02');assert.equal(restored.finishDate,'2027-03-23');assert.equal(restored.duration,22);assert.equal(restored.revision,expected.revision+1);
+ const snapshot=(await req('workspace')).data;await stop();await start();assert.deepEqual((await req('workspace')).data,snapshot);
+});

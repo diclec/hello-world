@@ -44,18 +44,18 @@ export function createSchedule({ all, put, auth, db, assignments }) {
       }
     });
   }
-  // Apply revised dependency rules to existing schedules when the installation restarts.
+  // Refresh dependency dates and summary bounds when the installation restarts.
   // Revisions and system audit entries change only for records whose calculated values change.
   function refreshExisting() {
     const tasks = all('tasks');
-    for (const projectId of new Set(tasks.filter(t => t.dependsOn?.length).map(t => t.projectId))) {
+    for (const projectId of new Set(tasks.filter(t => t.dependsOn?.length || t.parentId).map(t => t.projectId))) {
       const source = tasks.filter(t => t.projectId === projectId), prior = new Map(source.map(t => [t.id, t]));
       const changed = PmoSchedule.calculate(source).tasks.filter(t => JSON.stringify(t) !== JSON.stringify(prior.get(t.id)));
       if (!changed.length) continue;
       auth.transaction(() => {
         for (const task of changed) {
           const saved = { ...task, revision: task.revision + 1, updatedBy: null, updatedAt: new Date().toISOString() };
-          put('tasks', saved); auth.audit(null, 'schedule.recalculated', saved.id, { projectId, revision: saved.revision, reason: 'Dependency rule update' });
+          put('tasks', saved); auth.audit(null, 'schedule.recalculated', saved.id, { projectId, revision: saved.revision, reason: 'Schedule date refresh' });
         }
       });
     }
