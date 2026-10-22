@@ -57,15 +57,15 @@ Observed project health history remains stored in the customer database and rest
 
 ## Projects page actions
 
-Above the Projects table, **+RAID Item**, **+Change Order** and **+Latest Status** open project-linked forms. Choose the project in each form. The newest status entry (by its server-created timestamp) appears beneath that project’s name in the Projects table; earlier entries remain in the project’s **Status Updates** tab. Editing an earlier entry does not make it the newest entry.
+Above the Projects table, **+RAID Item**, **+Change Order** and **+Latest Status** open project-linked forms. Choose the project in each form. The newest status entry (by its server-created timestamp) appears beneath that project’s name in the Projects table; earlier entries remain in the project’s **Status** page. Editing an earlier entry does not make it the newest entry.
 
 Change orders capture a title, requested change/reason, review status (Draft, Submitted, Approved or Rejected), budget impact in the project currency, and schedule impact in whole days. Negative impacts represent savings or fewer days. The project’s **Change Orders** tab retains these records. Approval is a recorded review state; it does not automatically alter the approved budget or task schedule. RAID uses the existing RAID register. Viewers can read records but cannot submit or edit them; project membership and closed-project restrictions are enforced by the server. Fresh customers still start with no records.
 
 ## Individual project pages
 
-Opening any project goes directly to **Schedule**. The separate overview/landing page is removed. Old project-root and overview links redirect to Schedule. Latest status remains beneath project names in the Projects list, and full history remains in Status Updates.
+Opening any project goes directly to **Status**, the first item in the project toolbar. The separate overview/landing page is removed. Old project-root and overview links redirect to Status. Latest status remains beneath project names in the Projects list, and full history remains in Status.
 
-Schedule, RAID & Decisions, Workstreams, Financials, Change Orders and Status Updates each have a separate page address under `#/projects/<project-id>/<section>`, opening in the same browser tab. Links support refresh, bookmarks and browser Back/Forward; each section includes **Back to projects**. The default project page is `#/projects/<project-id>/schedule`. Every section keeps the section toolbar visible at the top for direct navigation. The larger project header is collapsed into **Project details**, with **← Back to projects** available to return to the list. Section pages preserve project context and existing permissions; schedule scrolling still keeps the project heading, section navigation and schedule column headers fixed. Links resolve only against projects accessible to the signed-in account.
+Status, Schedule, RAID & Decisions, Workstreams, Financials and Change Orders each have a separate page address under `#/projects/<project-id>/<section>`, opening in the same browser tab. Links support refresh, bookmarks and browser Back/Forward; each section includes **Back to projects**. The default project page is `#/projects/<project-id>/status-updates`. Every section keeps the section toolbar visible at the top for direct navigation. The larger project header is collapsed into **Project details**, with **← Back to projects** available to return to the list. Section pages preserve project context and existing permissions; schedule scrolling still keeps the project heading, section navigation and schedule column headers fixed. Links resolve only against projects accessible to the signed-in account.
 
 ## My Work
 
