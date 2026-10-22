@@ -61,6 +61,12 @@ Above the Projects table, **+RAID Item**, **+Change Order** and **+Latest Status
 
 Change orders capture a title, requested change/reason, review status (Draft, Submitted, Approved or Rejected), budget impact in the project currency, and schedule impact in whole days. Negative impacts represent savings or fewer days. The project’s **Change Orders** tab retains these records. Approval is a recorded review state; it does not automatically alter the approved budget or task schedule. RAID uses the existing RAID register. Viewers can read records but cannot submit or edit them; project membership and closed-project restrictions are enforced by the server. Fresh customers still start with no records.
 
+## Individual project pages
+
+Opening a project shows its latest entered status (title, timestamp and full update), or an empty state when no status has been entered. The Portfolio and Program filters and the former Project overview/Project work panels are omitted from this landing page.
+
+Work Plan, Schedule, RAID & Decisions, Workstreams, Financials, Change Orders and Status Updates each have a separate page address under `#/projects/<project-id>/<section>`, opening in the same browser tab. Links support refresh, bookmarks and browser Back/Forward; each section includes **Back to project**. The landing page is `#/projects/<project-id>`. Section pages preserve project context and existing permissions; schedule scrolling still keeps the project heading, section navigation and schedule column headers fixed. Links resolve only against projects accessible to the signed-in account.
+
 ## My Work
 
 My Work uses the same table-only layout and fixed column headers as the Projects directory. It shows only tasks assigned to the signed-in account, grouped into expandable **Portfolio → Program → Project → Task** rows. Direct portfolio projects skip the program level; unassigned projects have their own group. Empty portfolios/programs/projects and other users’ task rows are omitted. Completed tasks remain visible with grey strikethrough; the sidebar badge counts only your unfinished assignments.
