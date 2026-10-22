@@ -40,7 +40,7 @@ const hierarchy=createHierarchy({all,put,auth});
 const assignments=createAssignments({all,auth,db});
 const schedule=createSchedule({all,put,auth,db,assignments});
 schedule.refreshExisting();
-const types=['projects','tasks','raid','workstreams','changeOrders','statusUpdates'];
+const types=['projects','tasks','raid','workstreams','changeOrders','statusUpdates','financialEntries'];
 const server=http.createServer(async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cache-Control','no-store');
  const url=new URL(req.url,'http://localhost'); const send=(code,data)=>{res.writeHead(code,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
@@ -63,7 +63,7 @@ const server=http.createServer(async(req,res)=>{
  const snapshot=db.prepare('INSERT INTO health_snapshots VALUES(?,?,?) ON CONFLICT(project_id,day) DO UPDATE SET health=excluded.health WHERE health<>excluded.health');
  auth.transaction(()=>{for(const p of projects)snapshot.run(p.id,snapshotDay,p.health);});
  const healthHistory=projects.flatMap(p=>db.prepare('SELECT day,health FROM health_snapshots WHERE project_id=? AND day>=? ORDER BY day').all(p.id,cutoff).map(r=>({projectId:p.id,...r})));
- return send(200,{...hierarchy.visible(actor),projects,healthHistory,changeOrders:all('changeOrders').filter(r=>ids.has(r.projectId)),statusUpdates:all('statusUpdates').filter(r=>ids.has(r.projectId)),myTaskIds:assignments.forActor(actor).map(t=>t.id),tasks:all('tasks').filter(r=>ids.has(r.projectId)),raid:all('raid').filter(r=>ids.has(r.projectId)),workstreams:all('workstreams').filter(r=>ids.has(r.projectId))});
+ return send(200,{...hierarchy.visible(actor),projects,healthHistory,financialEntries:all('financialEntries').filter(r=>ids.has(r.projectId)),changeOrders:all('changeOrders').filter(r=>ids.has(r.projectId)),statusUpdates:all('statusUpdates').filter(r=>ids.has(r.projectId)),myTaskIds:assignments.forActor(actor).map(t=>t.id),tasks:all('tasks').filter(r=>ids.has(r.projectId)),raid:all('raid').filter(r=>ids.has(r.projectId)),workstreams:all('workstreams').filter(r=>ids.has(r.projectId))});
  }
  if(url.pathname==='/api/demo'&&req.method==='DELETE'){auth.admin(actor);db.exec('BEGIN');try{const userRecords=types.filter(k=>k!=='projects').flatMap(all).filter(r=>!r.demo);const retainedTasks=new Set(userRecords.filter(r=>r.projectId).flatMap(r=>[r.parentId,...(r.dependsOn||[])]).filter(Boolean));let grew=true;while(grew){grew=false;for(const t of all('tasks'))if(retainedTasks.has(t.id))for(const id of [t.parentId,...(t.dependsOn||[])].filter(Boolean))if(!retainedTasks.has(id)){retainedTasks.add(id);grew=true;}}const retainedProjects=new Set([...userRecords,...all('tasks').filter(t=>retainedTasks.has(t.id))].map(r=>r.projectId));const retainedStreams=new Set(userRecords.map(r=>r.workstreamId));for(const kind of types)for(const r of all(kind))if(r.demo){if((kind==='tasks'&&retainedTasks.has(r.id))||(kind==='projects'&&retainedProjects.has(r.id))||(kind==='workstreams'&&retainedStreams.has(r.id))){put(kind,{...r,demo:false,revision:r.revision+1});}else db.prepare('DELETE FROM records WHERE id=?').run(r.id);}auth.audit(actor,'demo.removed');db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}return send(200,{ok:true});}
  const [, ,kind,id]=url.pathname.split('/');if(!types.includes(kind))return send(404,{error:'Not found'});
@@ -94,8 +94,14 @@ const server=http.createServer(async(req,res)=>{
  for(const key of ['budget','forecast'])if(!Number.isFinite(Number(r[key]))||Number(r[key])<0)return send(400,{error:'Costs must be nonnegative numbers'});else r[key]=Number(r[key]);
  if(!['USD','EUR','GBP','CAD','AUD'].includes(r.currency||'USD'))return send(400,{error:'Unsupported currency'});r.currency=r.currency||'USD'; r.progress=Number(r.progress)||0;r.slip=Number(r.slip)||0;
  }
+ if(kind==='financialEntries'){
+ if(!['Budget','Actual','Committed','Forecast'].includes(r.entryType))return send(400,{error:'Select a valid financial record type'});
+ if(!['number','string'].includes(typeof r.amount)||!String(r.amount).trim()||!Number.isFinite(Number(r.amount))||Number(r.amount)<0)return send(400,{error:'Amount must be a nonnegative number'});
+ if(!PmoSchedule.validDate(r.entryDate))return send(400,{error:'Enter a valid financial record date'});
+ r.amount=Number(r.amount);r.currency=project.currency||'USD';
+ }
  if(kind==='tasks'&&!['To do','In progress','Done','Blocked'].includes(r.status))return send(400,{error:'Invalid task status'});
- if(kind==='tasks'&&r.workstreamId&&!all('workstreams').some(w=>w.id===r.workstreamId&&w.projectId===r.projectId))return send(400,{error:'Workstream must belong to the project'});
+ if(['tasks','raid','changeOrders','financialEntries'].includes(kind)&&r.workstreamId&&!all('workstreams').some(w=>w.id===r.workstreamId&&w.projectId===r.projectId))return send(400,{error:'Workstream must belong to the project'});
  if(kind==='raid'&&(!['Risk','Assumption','Issue','Dependency','Decision','Action'].includes(r.type)||!['Open','In progress','Resolved'].includes(r.status)))return send(400,{error:'Invalid RAID type or status'});
  if(kind==='raid'){if(!['Low','Medium','High','Critical'].includes(r.severity))return send(400,{error:'Invalid severity'});if(r.type==='Risk')for(const key of ['probability','impact']){r[key]=Number(r[key]||3);if(!Number.isInteger(r[key])||r[key]<1||r[key]>5)return send(400,{error:'Risk scores must be integers from 1 to 5'});}}
  if(['changeOrders','statusUpdates'].includes(kind)){

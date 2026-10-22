@@ -67,6 +67,14 @@ Opening any project goes directly to **Status**, the first item in the project t
 
 Status, Schedule, RAID & Decisions, Workstreams, Financials and Change Orders each have a separate page address under `#/projects/<project-id>/<section>`, opening in the same browser tab. Links support refresh, bookmarks and browser Back/Forward; each section includes **Back to projects**. The default project page is `#/projects/<project-id>/status-updates`. Every section keeps the section toolbar visible at the top for direct navigation. The larger project header is collapsed into **Project details**, with **← Back to projects** available to return to the list. Section pages preserve project context and existing permissions; schedule scrolling still keeps the project heading, section navigation and schedule column headers fixed. Links resolve only against projects accessible to the signed-in account.
 
+## Workstreams and linked registers
+
+The Workstreams page shows the project’s workstream count beside **Project workstreams**. Create or edit a stream using **Workstream Name**. Every stream lists its linked Milestones, Risks, Issues, Dependencies, Actions, Change Requests and Financials, including empty groups. Milestones include tasks marked Major milestone and zero-day leaf tasks; change requests use the existing Change Orders register.
+
+Select an optional **Workstream** when adding or editing a schedule task, RAID item, change order or financial record. Each record links to one workstream in its own project; the server rejects cross-project links. Click a listed record to open its existing editor. Only records matching both the project and workstream are shown. Existing role and project-access restrictions apply, including read-only viewers.
+
+The project Financials page now includes **Financial records** with a **+Financial Record** form. Record a title, type (Budget, Actual, Committed or Forecast), date, nonnegative amount in the project currency, optional notes and workstream. These individual records are stored separately from cumulative project totals; they do not automatically alter approved budget, actuals, commitments or forecast in Edit financials. Existing totals and customer records are preserved, and fresh customers remain empty. Financial records are available through `/api/financialEntries` with the same project access, revision and audit checks as other registers.
+
 ## My Work
 
 My Work uses the same table-only layout and fixed column headers as the Projects directory. It shows only tasks assigned to the signed-in account, grouped into expandable **Portfolio → Program → Project → Task** rows. Direct portfolio projects skip the program level; unassigned projects have their own group. Empty portfolios/programs/projects and other users’ task rows are omitted. Completed tasks remain visible with grey strikethrough; the sidebar badge counts only your unfinished assignments.

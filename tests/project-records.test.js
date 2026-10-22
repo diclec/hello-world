@@ -59,3 +59,24 @@ test('existing status reports retain their text and use submission dates when ed
  const before=(await req('workspace')).data.statusUpdates.find(r=>r.id===legacy.id);assert.equal(before.description,'Historical update');assert.equal(before.reportDate,undefined);
  const edited=await req('statusUpdates/'+legacy.id,'PATCH',{revision:1,description:'Historical update corrected'});assert.equal(edited.status,200);assert.equal(edited.data.reportDate,'2026-09-20');assert.equal(edited.data.createdAt,legacy.createdAt);
 });
+
+
+test('workstream links are restricted to the same project across registers',async()=>{
+ const stream=(await req('workstreams','POST',{name:'Delivery stream',projectId:project.id})).data;
+ const foreign=(await req('workstreams','POST',{name:'Private stream',projectId:privateProject.id})).data;
+ for(const [kind,fields] of [['raid',{type:'Risk',severity:'High',status:'Open'}],['changeOrders',{description:'Scope',status:'Draft',budgetImpact:20,scheduleImpact:1}],['financialEntries',{entryType:'Actual',amount:25,entryDate:'2026-10-22'}]]){
+  const input={name:'Linked '+kind,projectId:project.id,workstreamId:stream.id,...fields};const result=await req(kind,'POST',input,chris);assert.equal(result.status,201,JSON.stringify(result.data));assert.equal(result.data.workstreamId,stream.id);
+  assert.equal((await req(kind,'POST',{...input,workstreamId:foreign.id},chris)).status,400);
+  assert.equal((await req(kind+'/'+result.data.id,'PATCH',{revision:result.data.revision,workstreamId:'missing'},chris)).status,400);
+  assert.equal((await req(kind+'/'+result.data.id,'GET',undefined,outsider)).status,404);
+  assert.equal((await req('workspace','GET',undefined,outsider)).data[kind].some(r=>r.id===result.data.id),false);
+ }
+});
+test('financial entries validate amounts, types and dates and never change project totals',async()=>{
+ const input={name:'Actual cost',projectId:project.id,entryType:'Actual',amount:45.5,entryDate:'2026-10-22'};
+ for(const patch of [{amount:-1},{amount:'bad'},{entryType:'Other'},{entryDate:'2026-02-30'}])assert.equal((await req('financialEntries','POST',{...input,...patch})).status,400);
+ const record=await req('financialEntries','POST',input);assert.equal(record.status,201);assert.equal(record.data.currency,'USD');assert.equal(record.data.amount,45.5);
+ const viewer=await invite('Finance reader','finance-reader@example.test','viewer',[project.id]);assert.equal((await req('financialEntries','POST',input,viewer)).status,403);assert.equal((await req('financialEntries/'+record.data.id,'PATCH',{revision:record.data.revision,amount:50},viewer)).status,403);
+ const before=(await req('projects/'+project.id)).data;assert.equal(before.budget,100);assert.equal(before.forecast,100);
+ const snapshot=(await req('workspace')).data.financialEntries;await stop();await start();assert.deepEqual((await req('workspace')).data.financialEntries,snapshot);
+});
