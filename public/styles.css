@@ -85,3 +85,5 @@
 .tabs a{padding:12px 0;color:var(--muted);white-space:nowrap;font-size:12px}.tabs a.active{color:var(--primary);border-bottom:2px solid var(--primary)}.project-status-panel{margin-bottom:24px}.project-status-panel h3{font-size:15px}.project-status-panel small{color:var(--muted)}.project-status-panel p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8}.project-section-links a:hover{color:var(--action)}
 
 .major-milestone-option{display:flex;align-items:center;gap:9px;margin:12px 0}.major-milestone-option input{width:auto;accent-color:var(--action)}.major-milestone-label{display:block;color:var(--primary);font-size:9px;font-weight:700}.major-milestone-key{color:var(--primary);font-weight:700}
+
+.schedule-task-cell{display:flex;align-items:flex-start;gap:5px}.schedule-expander,.schedule-expander-space{flex:0 0 20px;width:20px;min-height:26px}.schedule-expander{background:transparent;color:var(--action);padding:3px;font-size:15px}.schedule-task-cell .schedule-task-name{padding-left:0}.gantt-chart [data-schedule-toggle]{cursor:pointer}.gantt-chart [data-schedule-toggle]:focus{outline:2px solid var(--accent)}
