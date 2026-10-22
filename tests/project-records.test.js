@@ -1,0 +1,47 @@
+import { test,before,after } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
+import { mkdtempSync,rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+const directory=mkdtempSync(path.join(tmpdir(),'pmo-project-records-')),password='project-record-test-passphrase';
+let child,port,admin,chris,taylor,outsider,portfolio,program,project,privateProject;
+async function start(){child=spawn(process.execPath,['server.js'],{env:{...process.env,DATA_DIR:directory,PORT:String(port),HOST:'127.0.0.1',PUBLIC_ORIGIN:'',PMO_ACCESS_TOKEN:'project-record-bootstrap',SEED_DEMO:'false'},stdio:['ignore','pipe','pipe']});await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Server timeout')),10000);child.stdout.on('data',d=>{if(d.toString().includes('listening')){clearTimeout(timer);resolve();}});child.once('exit',()=>{clearTimeout(timer);reject(Error('Server stopped'));});});}
+const stop=()=>new Promise(resolve=>{child.once('exit',resolve);child.kill();});
+async function req(route,method='GET',data,actor=admin){const response=await fetch(`http://127.0.0.1:${port}/api/${route}`,{method,headers:{'Content-Type':'application/json',...(actor?{Cookie:actor.cookie,'X-CSRF-Token':actor.csrf}:{})},...(data===undefined?{}:{body:JSON.stringify(data)})});const body=await response.json();return {status:response.status,data:body,cookie:response.headers.get('set-cookie')?.split(';')[0],csrf:body.csrf};}
+async function invite(name,email,role,projectIds){const i=await req('admin/users','POST',{name,email,role,projectIds});assert.equal(i.status,201);const actor=await req('auth/accept','POST',{token:i.data.token,password},null);assert.equal(actor.status,200);return actor;}
+const projectInput=name=>({name,status:'Active',budget:100,forecast:100});
+before(async()=>{port=await new Promise(resolve=>{const s=createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});await start();admin=await req('auth/setup','POST',{setupToken:'project-record-bootstrap',organization:'Records customer',name:'Admin',email:'admin@example.test',password},null);assert.equal(admin.status,201);portfolio=(await req('portfolios','POST',{name:'Portfolio A'})).data;program=(await req('programs','POST',{name:'Program A',portfolioId:portfolio.id})).data;project=(await req('projects','POST',{...projectInput('Project A'),portfolioId:portfolio.id,programId:program.id})).data;privateProject=(await req('projects','POST',projectInput('Private project'))).data;chris=await invite('Chris','chris@example.test','contributor',[project.id]);taylor=await invite('Taylor','taylor@example.test','contributor',[project.id]);outsider=await invite('Outsider','outsider@example.test','manager',[privateProject.id]);});
+after(async()=>{await stop();rmSync(directory,{recursive:true,force:true});});
+
+test('new customers have no change orders or status updates',async()=>{
+ const w=await req('workspace');assert.deepEqual(w.data.changeOrders,[]);assert.deepEqual(w.data.statusUpdates,[]);
+});
+test('project updates persist with server timestamps, revisions and project-scoped visibility',async()=>{
+ for(const kind of ['changeOrders','statusUpdates']){
+  const input={name:'Delivery update',description:'Review completed',projectId:project.id,...(kind==='changeOrders'?{status:'Submitted',budgetImpact:-250,scheduleImpact:-2}:{})};
+  const r=await req(kind,'POST',input,chris);assert.equal(r.status,201,JSON.stringify(r.data));assert.equal(r.data.authorId,chris.data.user.id);assert.ok(r.data.createdAt);assert.equal(r.data.revision,1);
+  assert.equal((await req(kind+'/'+r.data.id,'GET',undefined,taylor)).status,200);
+  assert.equal((await req(kind+'/'+r.data.id,'GET',undefined,outsider)).status,404);
+  assert.equal((await req('workspace','GET',undefined,outsider)).data[kind].length,0);
+  assert.equal((await req(kind+'/'+r.data.id,'PATCH',{revision:1,description:'Updated'},chris)).status,200);
+  assert.equal((await req(kind+'/'+r.data.id,'PATCH',{revision:1,description:'Stale'},chris)).status,409);
+  assert.equal((await req(kind+'/'+r.data.id,'PATCH',{revision:2,projectId:privateProject.id})).status,400);
+  assert.equal((await req(kind,'POST',{...input,projectId:privateProject.id},chris)).status,404);
+ }
+ const p=(await req('projects/'+project.id)).data;assert.equal(p.budget,100);assert.equal(p.forecast,100);
+ const snapshot=(await req('workspace')).data;await stop();await start();const again=(await req('workspace')).data;assert.deepEqual(again.statusUpdates,snapshot.statusUpdates);assert.deepEqual(again.changeOrders,snapshot.changeOrders);
+});
+test('project records validate details and financial and schedule impacts',async()=>{
+ const input={name:'Change',description:'Details',projectId:project.id,status:'Draft',budgetImpact:0,scheduleImpact:0};
+ for(const patch of [{description:''},{budgetImpact:'bad'},{scheduleImpact:0.5},{status:'Done'},{projectId:'missing'}])assert.equal((await req('changeOrders','POST',{...input,...patch})).status,400);
+ assert.equal((await req('statusUpdates','POST',{name:'Update',projectId:project.id,description:42})).status,400);
+});
+test('viewers cannot add or edit project records',async()=>{
+ const viewer=await invite('Reader','reader@example.test','viewer',[project.id]);
+ for(const kind of ['changeOrders','statusUpdates']){
+  assert.equal((await req(kind,'POST',{name:'Denied',description:'Details',projectId:project.id},viewer)).status,403);
+  const record=(await req('workspace')).data[kind][0];assert.equal((await req(kind+'/'+record.id,'PATCH',{revision:record.revision,description:'Denied'},viewer)).status,403);
+ }
+});

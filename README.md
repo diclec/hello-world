@@ -55,6 +55,12 @@ Below the fixed divider, an expandable table uses Portfolio Name, Owner, Target 
 
 Observed project health history remains stored in the customer database and restricted by project access. The table displays current health.
 
+## Projects page actions
+
+Above the Projects table, **+RAID Item**, **+Change Order** and **+Latest Status** open project-linked forms. Choose the project in each form. The newest status entry (by its server-created timestamp) appears beneath that project’s name in the Projects table; earlier entries remain in the project’s **Status Updates** tab. Editing an earlier entry does not make it the newest entry.
+
+Change orders capture a title, requested change/reason, review status (Draft, Submitted, Approved or Rejected), budget impact in the project currency, and schedule impact in whole days. Negative impacts represent savings or fewer days. The project’s **Change Orders** tab retains these records. Approval is a recorded review state; it does not automatically alter the approved budget or task schedule. RAID uses the existing RAID register. Viewers can read records but cannot submit or edit them; project membership and closed-project restrictions are enforced by the server. Fresh customers still start with no records.
+
 ## My Work
 
 My Work uses the same table-only layout and fixed column headers as the Projects directory. It shows only tasks assigned to the signed-in account, grouped into expandable **Portfolio → Program → Project → Task** rows. Direct portfolio projects skip the program level; unassigned projects have their own group. Empty portfolios/programs/projects and other users’ task rows are omitted. Completed tasks remain visible with grey strikethrough; the sidebar badge counts only your unfinished assignments.
