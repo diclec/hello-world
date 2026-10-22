@@ -55,7 +55,7 @@ Below the fixed divider, an expandable table uses Portfolio Name, Owner, Target 
 
 Observed project health history remains stored in the customer database and restricted by project access. The table displays current health.
 
-The Projects directory adds **Portfolio Name** immediately after Project Name and omits the risk/issue count columns. Its **Portfolio Name** filter supports individual portfolios, Unassigned and All portfolios. The filter combines with project-status shortcuts from Portfolio Home; opening Projects from the sidebar resets it. Other directory and Portfolio Home columns remain unchanged.
+The Projects directory starts with **Portfolio Name**, **Project Name**, and **Project Health**, followed by Owner, Target Completion Date and budget columns. Portfolio Health and the risk/issue count columns are omitted. Its **Portfolio Name** filter supports individual portfolios, Unassigned and All portfolios. The filter combines with project-status shortcuts from Portfolio Home; opening Projects from the sidebar resets it. Other directory and Portfolio Home columns remain unchanged.
 
 ## Projects page actions
 
