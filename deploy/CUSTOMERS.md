@@ -25,7 +25,7 @@ For an existing account-enabled installation, follow upgrade steps 1–2 below a
 
 ## Project schedules
 
-Every project now has a **Schedule** tab, using the same tasks as Work plan. Existing tasks are preserved and remain unscheduled until dates or predecessors are added. New customers still start with no task or schedule records. The feature is included in both the Pi installer and n8n provisioner source bundle; no separate service or database migration is required. See [schedule rules and fields](../README.md#project-schedules).
+Every project has a **Schedule** page for managing its tasks. Existing tasks are preserved and remain unscheduled until dates or predecessors are added. New customers still start with no task or schedule records. The feature is included in both the Pi installer and n8n provisioner source bundle; no separate service or database migration is required. See [schedule rules and fields](../README.md#project-schedules).
 
 ## Upgrade your existing Raspberry Pi installation
 
