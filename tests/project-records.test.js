@@ -80,3 +80,14 @@ test('financial entries validate amounts, types and dates and never change proje
  const before=(await req('projects/'+project.id)).data;assert.equal(before.budget,100);assert.equal(before.forecast,100);
  const snapshot=(await req('workspace')).data.financialEntries;await stop();await start();assert.deepEqual((await req('workspace')).data.financialEntries,snapshot);
 });
+
+
+test('project resource, transparency and escalation registers persist with access checks',async()=>{
+ const reader=await invite('New register reader','register-reader@example.test','viewer',[project.id]);
+ for(const [kind,status] of [['resources','Planned'],['transparencies','Open'],['escalations','Open']]){
+  const input={name:'Project '+kind,projectId:project.id,description:'Project details',owner:'Chris',status,due:'2026-12-01'};const result=await req(kind,'POST',input,chris);assert.equal(result.status,201,JSON.stringify(result.data));
+  assert.equal((await req(kind,'POST',{...input,status:'Invalid'})).status,400);assert.equal((await req(kind,'POST',{...input,projectId:privateProject.id},chris)).status,404);
+  assert.equal((await req(kind,'POST',input,reader)).status,403);assert.equal((await req(kind+'/'+result.data.id,'GET',undefined,outsider)).status,404);assert.equal((await req('workspace','GET',undefined,outsider)).data[kind].length,0);
+  const snapshot=(await req('workspace')).data[kind];await stop();await start();assert.deepEqual((await req('workspace')).data[kind],snapshot);
+ }
+});

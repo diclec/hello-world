@@ -119,3 +119,5 @@
 .project-directory-ledger thead th:first-child{width:170px}.project-directory-ledger thead th:nth-child(2){width:280px;text-align:left}.project-directory-ledger thead th:nth-child(3){width:125px}.project-directory-ledger thead th:nth-child(4){width:120px}.project-directory-ledger thead th:nth-child(5){width:145px}.project-directory-ledger thead th:nth-child(6),.project-directory-ledger thead th:nth-child(7),.project-directory-ledger thead th:nth-child(8){width:155px}.project-directory-ledger tbody td:first-child{text-align:left}
 
 .financial-project-actions{display:flex;flex-wrap:wrap;gap:8px}.project-actions .project-portfolio-filter{margin-left:0}
+
+.register-description{white-space:pre-wrap!important}.project-financials-page>section+section{margin-top:18px}
