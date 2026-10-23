@@ -8,6 +8,7 @@ import { createAuth, readJSON } from './auth.js';
 import { createHierarchy } from './hierarchy.js';
 import { createSchedule } from './schedule.js';
 import { createAssignments } from './assignments.js';
+import { createHealth } from './health.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(root,'.data'); mkdirSync(dataDir,{recursive:true,mode:0o700});
 const db = new DatabaseSync(path.join(dataDir,'pmo.sqlite')); db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, data TEXT NOT NULL);');
@@ -36,6 +37,7 @@ if(!get('initialized')){
 function health(p){const issues=all('raid').some(r=>r.projectId===p.id&&r.type==='Issue'&&r.severity==='Critical'&&r.status!=='Resolved');const variance=p.budget?(p.forecast-p.budget)/p.budget:null;const stale=p.lastReport&&Date.now()-Date.parse(p.lastReport)>7*86400000;const overdueRisk=all('raid').some(r=>r.projectId===p.id&&r.type==='Risk'&&['High','Critical'].includes(r.severity)&&r.status!=='Resolved'&&r.due&&r.due<new Date().toISOString().slice(0,10)); if(issues||p.slip>10||variance>.1)return 'At risk'; if(p.slip>0||variance>0||stale||overdueRisk)return 'Needs attention';if(!p.budget||!p.lastReport)return 'Unknown';return 'On track';}
 const host = process.env.HOST || '127.0.0.1';
 const auth = createAuth(db,{dataDir,host});
+const healthScoring=createHealth({db,all,auth});
 const hierarchy=createHierarchy({all,put,auth});
 const assignments=createAssignments({all,auth,db});
 const schedule=createSchedule({all,put,auth,db,assignments});
@@ -47,6 +49,7 @@ const server=http.createServer(async(req,res)=>{
  try{
  if(url.pathname.startsWith('/api/')){
  auth.checkOrigin(req);
+ if(url.pathname==='/api/admin/health-settings'){const actor=auth.requireUser(req);await healthScoring.handle(req,url,actor,send,['GET','HEAD'].includes(req.method)?{}:await readJSON(req));return;}
  if(await auth.handle(req,res,url,send))return;
  if(!['GET','HEAD'].includes(req.method))await readJSON(req);
  const actor=auth.requireUser(req);
@@ -58,16 +61,17 @@ const server=http.createServer(async(req,res)=>{
  return send(200,{tasks,projects,programs:visible.programs.filter(p=>projects.some(r=>r.programId===p.id)),portfolios:visible.portfolios.filter(p=>projects.some(r=>r.portfolioId===p.id))});
  }
  if(url.pathname==='/api/workspace'&&req.method==='GET'){
- const projects=all('projects').filter(p=>auth.canRead(actor,p.id)).map(p=>({...p,health:health(p)}));const ids=new Set(projects.map(p=>p.id));
+ const healthSettings=healthScoring.settings(),healthRecords=Object.fromEntries(['tasks','raid','resources','statusUpdates'].map(k=>[k,all(k)]));
+ const projects=all('projects').filter(p=>auth.canRead(actor,p.id)).map(p=>healthScoring.enrich({...p,health:health(p)},healthSettings,healthRecords));const ids=new Set(projects.map(p=>p.id));
  const snapshotDay=new Date().toISOString().slice(0,10);const cutoff=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
  const snapshot=db.prepare('INSERT INTO health_snapshots VALUES(?,?,?) ON CONFLICT(project_id,day) DO UPDATE SET health=excluded.health WHERE health<>excluded.health');
  auth.transaction(()=>{for(const p of projects)snapshot.run(p.id,snapshotDay,p.health);});
  const healthHistory=projects.flatMap(p=>db.prepare('SELECT day,health FROM health_snapshots WHERE project_id=? AND day>=? ORDER BY day').all(p.id,cutoff).map(r=>({projectId:p.id,...r})));
- return send(200,{...hierarchy.visible(actor),projects,healthHistory,resources:all('resources').filter(r=>ids.has(r.projectId)),transparencies:all('transparencies').filter(r=>ids.has(r.projectId)),escalations:all('escalations').filter(r=>ids.has(r.projectId)),financialEntries:all('financialEntries').filter(r=>ids.has(r.projectId)),changeOrders:all('changeOrders').filter(r=>ids.has(r.projectId)),statusUpdates:all('statusUpdates').filter(r=>ids.has(r.projectId)),myTaskIds:assignments.forActor(actor).map(t=>t.id),tasks:all('tasks').filter(r=>ids.has(r.projectId)),raid:all('raid').filter(r=>ids.has(r.projectId)),workstreams:all('workstreams').filter(r=>ids.has(r.projectId))});
+ return send(200,{...hierarchy.visible(actor),projects,healthSettings,healthHistory,resources:all('resources').filter(r=>ids.has(r.projectId)),transparencies:all('transparencies').filter(r=>ids.has(r.projectId)),escalations:all('escalations').filter(r=>ids.has(r.projectId)),financialEntries:all('financialEntries').filter(r=>ids.has(r.projectId)),changeOrders:all('changeOrders').filter(r=>ids.has(r.projectId)),statusUpdates:all('statusUpdates').filter(r=>ids.has(r.projectId)),myTaskIds:assignments.forActor(actor).map(t=>t.id),tasks:all('tasks').filter(r=>ids.has(r.projectId)),raid:all('raid').filter(r=>ids.has(r.projectId)),workstreams:all('workstreams').filter(r=>ids.has(r.projectId))});
  }
  if(url.pathname==='/api/demo'&&req.method==='DELETE'){auth.admin(actor);db.exec('BEGIN');try{const userRecords=types.filter(k=>k!=='projects').flatMap(all).filter(r=>!r.demo);const retainedTasks=new Set(userRecords.filter(r=>r.projectId).flatMap(r=>[r.parentId,...(r.dependsOn||[])]).filter(Boolean));let grew=true;while(grew){grew=false;for(const t of all('tasks'))if(retainedTasks.has(t.id))for(const id of [t.parentId,...(t.dependsOn||[])].filter(Boolean))if(!retainedTasks.has(id)){retainedTasks.add(id);grew=true;}}const retainedProjects=new Set([...userRecords,...all('tasks').filter(t=>retainedTasks.has(t.id))].map(r=>r.projectId));const retainedStreams=new Set(userRecords.map(r=>r.workstreamId));for(const kind of types)for(const r of all(kind))if(r.demo){if((kind==='tasks'&&retainedTasks.has(r.id))||(kind==='projects'&&retainedProjects.has(r.id))||(kind==='workstreams'&&retainedStreams.has(r.id))){put(kind,{...r,demo:false,revision:r.revision+1});}else db.prepare('DELETE FROM records WHERE id=?').run(r.id);}auth.audit(actor,'demo.removed');db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}return send(200,{ok:true});}
  const [, ,kind,id]=url.pathname.split('/');if(!types.includes(kind))return send(404,{error:'Not found'});
- if(req.method==='GET'&&id){const record=all(kind).find(r=>r.id===id);if(!record||!auth.canRead(actor,kind==='projects'?id:record.projectId))return send(404,{error:'Record not found'});return send(200,kind==='projects'?{...record,health:health(record)}:record);}
+ if(req.method==='GET'&&id){const record=all(kind).find(r=>r.id===id);if(!record||!auth.canRead(actor,kind==='projects'?id:record.projectId))return send(404,{error:'Record not found'});return send(200,kind==='projects'?healthScoring.enrich({...record,health:health(record)}):record);}
  const input=await readJSON(req);
  if(kind==='resources'&&id&&req.method==='DELETE'){
  const old=all('resources').find(r=>r.id===id);if(!old)return send(404,{error:'Resource assignment not found'});
@@ -140,7 +144,7 @@ const server=http.createServer(async(req,res)=>{
  }
  return send(405,{error:'Method not allowed'});
  }
- const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','overview.js','my-work.js','financials.js','schedule-core.js','schedule.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
+ const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','overview.js','my-work.js','financials.js','health-core.js','health-settings.js','schedule-core.js','schedule.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
  res.writeHead(200,{'Content-Type':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'text/html','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'"});res.end(readFileSync(path.join(root,'public',file)));
  }catch(e){send(e.status||(e instanceof SyntaxError?400:500),{error:e.status?e.message:e instanceof SyntaxError?'Invalid JSON':'Request failed'});}
 });
