@@ -1,6 +1,6 @@
 let financialChartExpanded=true;
 const financialExpandedPortfolios=new Set(),financialExpandedPrograms=new Set();
-const financialMoney=(value,currency)=>new Intl.NumberFormat('en-US',{style:'currency',currency,maximumFractionDigits:2}).format(value);
+const financialMoney=(value,currency)=>new Intl.NumberFormat('en-US',{style:'currency',currency,minimumFractionDigits:0,maximumFractionDigits:0}).format(value);
 const financialHeaders=['Portfolio Name','Owner','Total Approved Budget','Actuals','Committed Costs','Estimate at Completion','Forecast Variance','Remaining Budget'];
 function financialTotals(projects){
   return [...new Set(projects.map(p=>p.currency||'USD'))].sort().map(currency=>{

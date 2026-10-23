@@ -99,6 +99,8 @@ The task editor’s **Assign to user** selector lists only active accounts that 
 
 The server returns assignment IDs with the authorized workspace and provides `/api/my-work` for the current account’s tasks and their required hierarchy, plus `/api/projects/:id/assignees` for permitted assignment choices. Existing projects/tasks are preserved; no assignment backfill is performed merely by reading the workspace. New customer installations remain empty. Both Pi deployment installers include the assignment service and My Work page.
 
+Currency summaries, charts and register tables display rounded whole amounts without cents. Stored values and financial calculations retain their precision.
+
 ## Financials Overview
 
 Open **Financials Overview** from the sidebar. The fixed summary charts show approved budget, spent-to-date actuals and remaining budget across all accessible projects, including Unassigned projects. Use **Budget summary** to collapse or expand the charts and legend; the choice is retained while navigating the portal. Each currency has its own green pie chart for spent versus remaining budget; currencies are never added together. Missing actuals use an unreconciled pattern rather than claiming the balance is known. The summary has a bottom border, and the table column headers stay visible while the rows scroll. Overspending shows an over-budget amount and a fully spent pie rather than a negative slice. Project Financials retains its existing stacked bars.
