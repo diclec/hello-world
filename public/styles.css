@@ -123,3 +123,5 @@
 .register-description{white-space:pre-wrap!important}.project-financials-page>section+section{margin-top:18px}
 
 .portfolio-rag{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:10px;font-weight:400;line-height:1.4;color:var(--muted)}.portfolio-stoplight{display:inline-flex;gap:3px;padding:3px 4px;border:1px solid var(--border);border-radius:12px;background:#F1F5F9;flex-shrink:0}.portfolio-stoplight i{display:block;width:7px;height:7px;border-radius:50%;background:#CBD5E1}.portfolio-stoplight.rag-red .rag-lamp-red{background:#DC2626}.portfolio-stoplight.rag-amber .rag-lamp-amber{background:#EAB308}.portfolio-stoplight.rag-green .rag-lamp-green{background:#16A34A}.financial-row-name .portfolio-rag-label{font-size:10px}.portfolio-rag-label{overflow-wrap:anywhere}
+
+.project-latest-status>summary{cursor:pointer;color:var(--action);font-size:10px;font-weight:600}.project-latest-status>p{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 0;line-height:1.7}.project-latest-status>summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
