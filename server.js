@@ -9,6 +9,7 @@ import { createHierarchy } from './hierarchy.js';
 import { createSchedule } from './schedule.js';
 import { createAssignments } from './assignments.js';
 import { createHealth } from './health.js';
+import { createAssistant } from './assistant.js';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = process.env.DATA_DIR || path.join(root,'.data'); mkdirSync(dataDir,{recursive:true,mode:0o700});
 const db = new DatabaseSync(path.join(dataDir,'pmo.sqlite')); db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, data TEXT NOT NULL);');
@@ -42,6 +43,7 @@ const hierarchy=createHierarchy({all,put,auth});
 const assignments=createAssignments({all,auth,db});
 const schedule=createSchedule({all,put,auth,db,assignments});
 schedule.refreshExisting();
+const assistant=createAssistant({all,hierarchy,auth,assignments,healthSettings:healthScoring.settings,enrich:p=>healthScoring.enrich({...p,health:health(p)})});
 const types=['projects','tasks','raid','workstreams','changeOrders','statusUpdates','financialEntries','resources','transparencies','escalations'];
 const server=http.createServer(async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cache-Control','no-store');
@@ -53,6 +55,7 @@ const server=http.createServer(async(req,res)=>{
  if(await auth.handle(req,res,url,send))return;
  if(!['GET','HEAD'].includes(req.method))await readJSON(req);
  const actor=auth.requireUser(req);
+ if(await assistant.handle(req,url,actor,send,['GET','HEAD'].includes(req.method)?{}:await readJSON(req)))return;
  if(await hierarchy.handle(req,url,actor,send))return;
  const assigneesRoute=url.pathname.match(/^\/api\/projects\/([^/]+)\/assignees$/);
  if(assigneesRoute&&req.method==='GET')return send(200,{users:assignments.list(actor,assigneesRoute[1])});
@@ -144,7 +147,7 @@ const server=http.createServer(async(req,res)=>{
  }
  return send(405,{error:'Method not allowed'});
  }
- const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','overview.js','my-work.js','financials.js','health-core.js','health-settings.js','schedule-core.js','schedule.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
+ const file=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','identity.js','portfolios.js','overview.js','my-work.js','financials.js','health-core.js','health-settings.js','assistant.js','schedule-core.js','schedule.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
  res.writeHead(200,{'Content-Type':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'text/html','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'"});res.end(readFileSync(path.join(root,'public',file)));
  }catch(e){send(e.status||(e instanceof SyntaxError?400:500),{error:e.status?e.message:e instanceof SyntaxError?'Invalid JSON':'Request failed'});}
 });

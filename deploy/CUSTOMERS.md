@@ -134,3 +134,7 @@ The installer creates a pre-upgrade backup, but a scheduled off-device backup an
 Integration and browser tests cover customer separation, setup, invitations, sessions, CSRF, roles, project boundaries, migration, and admin operations. Raspberry Pi systemd installation, Tailscale routing/policies, reboot behavior, and backup restoration still require verification on the target hardware. No deployment to an existing customer happens merely by pushing the branch.
 
 This is a self-hosted account-management release, not a complete hosted SaaS control plane. SSO, MFA, verified email and automated mail delivery, billing, quotas, automated customer provisioning, central vendor administration, field-level commercial permissions, and production recovery certification are not included. Existing governance/approval features remain outside this increment.
+
+## Local AI assistant
+
+The optional, read-only AI Assistant uses a self-hosted Ollama server and each signed-in user’s existing project permissions. It is disabled until configured separately for that customer. See [Ollama setup and access controls](AI-ASSISTANT.md).
