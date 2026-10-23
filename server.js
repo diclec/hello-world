@@ -77,6 +77,13 @@ const server=http.createServer(async(req,res)=>{
  if(kind==='workstreams'&&old&&input.projectId&&old.projectId!==input.projectId)return send(400,{error:'Workstreams cannot move between projects'});
  const r={...(old||{}),...input,id:old?.id||randomUUID(),revision:(old?.revision||0)+1,demo:old?.demo||false,createdAt:old?.createdAt||new Date().toISOString(),authorId:old?.authorId||actor.id,updatedBy:actor.id,updatedAt:new Date().toISOString()};
  for(const key of ['owner','category','description','response','currency','target','due','status','type','severity','workstreamId','projectId'])if(r[key]!==undefined&&(typeof r[key]!=='string'||r[key].length>10000))return send(400,{error:'Invalid '+key});
+ if(kind==='resources'){
+ if(input.sourceResourceId!==undefined&&typeof input.sourceResourceId!=='string')return send(400,{error:'Select a valid resource'});
+ if(old&&input.sourceResourceId)return send(400,{error:'An existing assignment cannot change resource identity'});
+ if(!old&&input.sourceResourceId){const source=all('resources').find(r=>r.id===input.sourceResourceId);if(!source||!auth.canRead(actor,source.projectId))return send(404,{error:'Resource not found'});r.resourceId=source.resourceId||source.id;r.name=source.name;}else r.resourceId=old?.resourceId||old?.id||r.id;
+ delete r.sourceResourceId;
+ for(const key of ['allocatedHours','utilizedHours'])if(Object.hasOwn(input,key)){if(input[key]===''||input[key]===null)delete r[key];else if(!['number','string'].includes(typeof input[key])||!String(input[key]).trim()||!Number.isFinite(Number(input[key]))||Number(input[key])<0)return send(400,{error:'Hours must be nonnegative numbers, or blank when unrecorded'});else r[key]=Number(input[key]);}
+ }
  if(kind==='statusUpdates'){
  if(input.reportDate===undefined&&old)r.reportDate=old.reportDate||old.createdAt?.slice(0,10);
  if(!PmoSchedule.validDate(r.reportDate))return send(400,{error:'Enter a valid report date'});

@@ -114,3 +114,13 @@ test('resources save workstreams and assignment dates without status or owner fo
  for(const patch of [{assignmentEndDate:'2026-10-01'},{assignmentStartDate:'2026-02-30'},{assignmentEndDate:42},{workstreamId:otherStream.id}])assert.equal((await req('resources','POST',{...input,...patch})).status,400);
  const edited=await req('resources/'+result.data.id,'PATCH',{revision:result.data.revision,assignmentEndDate:'',workstreamId:''});assert.equal(edited.status,200);assert.equal(edited.data.assignmentEndDate,'');assert.equal(edited.data.due,'');assert.equal(edited.data.workstreamId,'');
 });
+
+
+test('resources can be assigned to additional projects with independent hours and coverage',async()=>{
+ const first=await req('resources','POST',{name:'Shared specialist',projectId:project.id,assignmentStartDate:'2026-11-01',assignmentEndDate:'2026-12-01',allocatedHours:80,utilizedHours:25});assert.equal(first.status,201);assert.equal(first.data.resourceId,first.data.id);
+ const second=await req('resources','POST',{sourceResourceId:first.data.id,projectId:privateProject.id,assignmentStartDate:'2026-12-02',allocatedHours:40,utilizedHours:45});assert.equal(second.status,201,JSON.stringify(second.data));assert.equal(second.data.name,'Shared specialist');assert.equal(second.data.resourceId,first.data.resourceId);assert.notEqual(second.data.id,first.data.id);assert.equal(second.data.allocatedHours,40);assert.equal((await req('resources/'+first.data.id)).data.allocatedHours,80);
+ assert.equal((await req('resources','POST',{sourceResourceId:second.data.id,projectId:project.id,allocatedHours:1},chris)).status,404);
+ for(const invalid of [-1,'bad',{},true])assert.equal((await req('resources','POST',{name:'Invalid hours',projectId:project.id,allocatedHours:invalid})).status,400);
+ assert.equal((await req('resources/'+first.data.id,'PATCH',{revision:first.data.revision,sourceResourceId:second.data.id})).status,400);
+ const snapshot=(await req('workspace')).data.resources;await stop();await start();assert.deepEqual((await req('workspace')).data.resources,snapshot);
+});
