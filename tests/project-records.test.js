@@ -124,3 +124,18 @@ test('resources can be assigned to additional projects with independent hours an
  assert.equal((await req('resources/'+first.data.id,'PATCH',{revision:first.data.revision,sourceResourceId:second.data.id})).status,400);
  const snapshot=(await req('workspace')).data.resources;await stop();await start();assert.deepEqual((await req('workspace')).data.resources,snapshot);
 });
+
+test('resource assignment removal enforces access and revisions and preserves other assignments',async()=>{
+ const first=(await req('resources','POST',{name:'Removal coverage',projectId:project.id,allocatedHours:20,utilizedHours:5})).data;
+ const second=(await req('resources','POST',{sourceResourceId:first.id,projectId:privateProject.id,allocatedHours:30})).data;
+ const viewer=await invite('Resource reader','resource-reader@example.test','viewer',[project.id]);
+ assert.equal((await req('resources/'+first.id,'DELETE',{revision:1},viewer)).status,403);
+ assert.equal((await req('resources/'+first.id,'DELETE',{revision:1},outsider)).status,404);
+ assert.equal((await req('resources/'+first.id,'DELETE',{revision:99},chris)).status,409);
+ assert.equal((await req('resources/'+first.id,'DELETE',{},chris)).status,409);
+ assert.equal((await req('resources/'+first.id,'DELETE',{revision:1},chris)).status,200);
+ assert.equal((await req('resources/'+first.id)).status,404);
+ assert.equal((await req('resources/'+second.id)).data.resourceId,first.id);
+ assert.equal((await req('resources/'+second.id)).data.allocatedHours,30);
+ await stop();await start();assert.equal((await req('resources/'+first.id)).status,404);assert.equal((await req('resources/'+second.id)).status,200);
+});

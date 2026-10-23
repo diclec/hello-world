@@ -69,6 +69,11 @@ const server=http.createServer(async(req,res)=>{
  const [, ,kind,id]=url.pathname.split('/');if(!types.includes(kind))return send(404,{error:'Not found'});
  if(req.method==='GET'&&id){const record=all(kind).find(r=>r.id===id);if(!record||!auth.canRead(actor,kind==='projects'?id:record.projectId))return send(404,{error:'Record not found'});return send(200,kind==='projects'?{...record,health:health(record)}:record);}
  const input=await readJSON(req);
+ if(kind==='resources'&&id&&req.method==='DELETE'){
+ const old=all('resources').find(r=>r.id===id);if(!old)return send(404,{error:'Resource assignment not found'});
+ auth.authorizeWrite(actor,kind,old,{});if(old.revision!==input.revision)return send(409,{error:'This assignment changed. Refresh and try again.'});
+ auth.transaction(()=>{db.prepare("DELETE FROM records WHERE id=? AND kind='resources'").run(id);auth.audit(actor,'resources.deleted',id,{projectId:old.projectId,resourceId:old.resourceId||old.id});});return send(200,{ok:true});
+ }
  if(kind==='tasks'&&id&&req.method==='DELETE'){schedule.remove(actor,id,input);return send(200,{ok:true});}
  if(req.method==='POST'||req.method==='PATCH'){
  const old=id&&get(id);if(id&&(!old||!all(kind).some(r=>r.id===id)))return send(404,{error:'Record not found'});

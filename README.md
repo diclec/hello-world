@@ -154,3 +154,5 @@ Validate systemd startup, Tailscale access policies, reboot persistence, recover
 ## Automated customer provisioning with n8n Cloud
 
 Use [the automation setup guide](deploy/AUTOMATION.md) to install an outbound Pi worker and import the workflows in `n8n/`. A private agent collects only customer name and the first administrator's name/email. The Pi allocates folders/services/ports, starts an empty customer database, creates a single-use administrator activation link, verifies private HTTPS, and returns the links through n8n. No public Pi webhook, public SSH, or administrator password in the agent is required. See [agent instructions](n8n/AGENT-INSTRUCTIONS.md).
+
+The Resources page groups assignments by Workstream by default. Use **Group and sort by** to switch to Resource. Each row has a **Remove** action with confirmation; this deletes only that project assignment and its recorded hours, preserving other assignments and user accounts. Removal requires project write access and the current assignment revision.
